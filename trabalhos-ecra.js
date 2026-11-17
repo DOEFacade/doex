@@ -28,6 +28,7 @@
     var R = {}, tRasc = null;   // os rascunhos em disco (de todas as contas deste telemóvel; cada um diz a sua), por id
     function hoje() { return K.hojeDia().dia; }
     function eu() { var s = K.sessao(); return { nome: (s && s.nome) || '' }; }
+    function soTelemovel() { var s = K.sessao(); return !!(s && s.soTelemovel); }   // a marca do login (casca.js › encarregado)
     function minhaFila() { return K.fila().filter(function (q) { return q.contaId === K.contaId() && q.estado !== 'entregue' && !K.apagar[q.id]; }); }
     function deps() {
       var dp = K.deps(), conta = K.contaId();
@@ -114,7 +115,7 @@
         g.itens.forEach(function (t) { gs.appendChild(linha(t)); });
         v.appendChild(gs);
       });
-      if (x.data.cortado) v.appendChild(el('p', 'mv-folha-txt', 'A mostrar ' + (x.data.trabalhos || []).length + ' de ' + x.data.total + '. Os outros vêem-se no computador.'));
+      if (x.data.cortado) v.appendChild(el('p', 'mv-folha-txt', 'A mostrar ' + (x.data.trabalhos || []).length + ' de ' + x.data.total + '. ' + (soTelemovel() ? 'Os outros vê-os o GP ou o DO da obra, no computador.' : 'Os outros vêem-se no computador.')));   // a conta só de telemóvel não tem computador (Pessoal, F0)
       if (k) { var y = v.querySelector('[data-k="' + k + '"]'); if (y) K.A.focar(y); }
       carregarMinis(v);
     }

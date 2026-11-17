@@ -80,6 +80,7 @@
   --mv-circ: 26px;          /* círculo de «feito» (dentro de um alvo de 48) */
   --mv-int-w: 52px; --mv-int-h: 32px; --mv-int-bola: 28px;   /* interruptor «Está bloqueado» */
   --mv-b20-hg: 28px;        /* a barra alta dos trabalhos no resumo do ecrã (no bloco é --mv-b20-h) */
+  --mv-ano-fio: 1px;        /* Pessoal, F1 (guia 13b): o intervalo entre os dias da grelha do ano (31 colunas a 360 px) */
   --mv-ob-mini-w: 64px; --mv-ob-mini-h: 28px; --mv-ob-num-w: 44px;   /* linha de uma obra (página Obras): colunas dos 7 dias em miniatura; «homens hoje» */
   --mv-pag-ponto: 6px; --mv-pag-espreita: 10px;
   --mv-borda-fina: inset 0 0 0 1px var(--fileteF);   /* a opção escolhida do selector de dois lugares (.mv-segm) */   /* pontos de paginação; a página Obras espreita na 1.ª abertura */
@@ -440,6 +441,8 @@ html.mv-casca #faixa, html.mv-casca #faixa-rede, html.mv-casca #alheios { displa
 
 /* barra de destinos */
 .mv-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: 1fr 1fr var(--mv-linha-g) 1fr 1fr; align-items: center; min-height: calc(var(--mv-nav-h) + var(--mv-sa-bot)); padding: 0 calc(var(--e2) + var(--mv-sa-dir)) var(--mv-sa-bot) calc(var(--e2) + var(--mv-sa-esq)); background: var(--fundo); border-top: 1px solid var(--filete); }
+.mv-nav.tres { grid-template-columns: 1fr var(--mv-linha-g) 1fr; }   /* a conta só de telemóvel (Pessoal, F0): Hoje · + · Conta */
+.mv-nav.quatro #b-conta { grid-column: span 2; }   /* a conta externa (Pessoal, F0): Hoje · Tarefas · + · Conta; o «+» fica no meio, onde está para todos */
 .mv-dest { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--mv-fino); min-height: var(--mv-alvo-g); min-width: var(--mv-alvo); border: 0; background: none; color: var(--t2); font-size: var(--mv-fs-leg); font-weight: 600; border-radius: var(--r-l); padding: 0; }
 .mv-dest[aria-current="page"] { color: var(--navy); font-weight: 650; }
 .mv-dest.embreve { color: var(--t3); }
@@ -766,3 +769,63 @@ span.mv-tf-foto { display: grid; place-items: center; color: var(--t3); font-siz
 .mv-foto-nota { margin-top: var(--e1); }
 .mv-foto.a-tirar { opacity: var(--mv-op-inativo); }
 .mv-foto-atirar { font-size: var(--mv-fs-leg); color: var(--t2); }
+/* Pessoal, F1 (16 nov 2026): só para ler (guia 13b, «Pessoal, só para ler»; protótipo docs/prototipos/telemovel-perfis/pessoal.js).
+   O saldo com a barra de três troços (gozados liso neutro, marcados liso verde, pendentes com trama âmbar: lê-se sem cor),
+   a grelha do ano, a pílula do estado (sempre escrita), as linhas e os passos do reembolso (os pares nome e valor são o .mv-rl). */
+.mv-pes { padding-top: calc(var(--mv-sa-top) + var(--e3)); }
+.mv-pes .mv-hcab-l { min-height: var(--e6); }
+.mv-pes > .mv-faixa { margin: var(--e4) 0 0; }
+.mv-pes-saldo { margin-top: var(--e5); text-align: center; }
+.mv-pes-saldo .mv-num { color: var(--tinta); }
+.mv-pes-saldo .mv-num small { font-size: var(--mv-fs-tit); font-weight: 600; letter-spacing: normal; margin-left: var(--e1); }
+.mv-pes-saldo p { margin: 0; font-size: var(--mv-fs-sec); color: var(--t2); line-height: var(--mv-lh-sec); }
+.mv-pes-b3 { display: flex; height: var(--e3); border-radius: var(--e2); overflow: hidden; background: var(--papel2); box-shadow: var(--mv-borda-fina); margin: var(--e4) 0 0; }
+.mv-pes-b3 > i { display: block; height: 100%; flex: none; }
+.mv-pes-b3 .goz, .mv-leg i.goz, .mv-pes-ano i.goz { background: var(--neutro); }
+.mv-pes-b3 .mar, .mv-leg i.mar, .mv-pes-ano i.mar { background: var(--pos); }
+.mv-pes-b3 .pen, .mv-leg i.pen, .mv-pes-ano i.pen { background: repeating-linear-gradient(-45deg, var(--ama) 0 var(--mv-trama), var(--amaF) var(--mv-trama) var(--mv-trama-p)); }
+.mv-leg i.liv { background: var(--papel2); box-shadow: var(--mv-borda-fina); }
+.mv-leg i.fer, .mv-pes-ano i.fer, .mv-pes-ano i.fec { background: repeating-linear-gradient(-45deg, var(--t3) 0 var(--mv-fino), var(--papel2) var(--mv-fino) var(--e1)); }
+.mv-pes-saldo + .mv-pes-b3 + .mv-leg, .mv-pes-cart .mv-leg.linha { justify-content: center; }
+.mv-pes-prox { text-align: center; margin: var(--e2) 0 0; font-size: var(--mv-fs-leg); color: var(--t2); }
+.mv-pes-cart { margin-top: var(--e4); padding: var(--e3) var(--e4) var(--e4); }
+.mv-pes-cart .mv-pes-b3 { margin-top: 0; }
+.mv-pes .mv-sec, .mv-pes-sub .mv-sec { margin-top: var(--e5); }
+.mv-pes .mv-sec-h, .mv-pes-sub .mv-sec-h { margin-bottom: var(--e2); }
+.mv-pes-sub .mv-segm { margin-top: var(--e5); }
+.mv-pes-sub .mv-lead { margin-bottom: var(--e1); }
+.mv-pes-sub > .mv-faixa { margin: var(--e4) 0 0; }
+.mv-pes-est { display: inline-flex; align-items: center; flex: none; max-width: 40%; font-size: var(--mv-fs-leg); font-weight: 650; line-height: var(--mv-lh-op); padding: var(--e1) var(--e2); border-radius: var(--r-l); background: var(--papel2); color: var(--t2); text-align: right; }
+.mv-pes-est.ama { background: var(--amaF); color: var(--ama); } .mv-pes-est.pos { background: var(--posF); color: var(--pos); }
+.mv-pes-est.neg { background: var(--negF); color: var(--neg); } .mv-pes-est.nav { background: var(--navyF); color: var(--navy); }
+.mv-pes-l { display: flex; align-items: center; gap: var(--e3); width: 100%; min-height: var(--mv-linha-g); padding: var(--e3) 0 var(--e3) var(--e2); border: 0; border-top: 1px solid var(--filete); background: none; text-align: left; color: var(--tinta); font: inherit; }
+.mv-grupo > .mv-pes-l:first-child, .mv-sec-h + .mv-grupo > .mv-pes-l:first-child { border-top-color: transparent; }
+button.mv-pes-l:active { filter: var(--mv-premido); }
+.mv-pes-l .mv-pes-ic { flex: none; width: var(--e6); height: var(--e6); border-radius: 50%; display: grid; place-items: center; background: var(--papel2); color: var(--t2); }
+.mv-pes-l .mv-pes-ic .mv-ic { width: var(--mv-ic-n); height: var(--mv-ic-n); }
+.mv-pes-ic.ama { background: var(--amaF); color: var(--ama); } .mv-pes-ic.pos { background: var(--posF); color: var(--pos); }
+.mv-pes-ic.neg { background: var(--negF); color: var(--neg); } .mv-pes-ic.nav { background: var(--navyF); color: var(--navy); }
+.mv-pes-lt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--mv-fino); }
+.mv-pes-lt b { font-size: var(--mv-fs-txt); font-weight: 500; line-height: var(--mv-lh-op); overflow-wrap: anywhere; }
+.mv-pes-lt small { font-size: var(--mv-fs-leg); color: var(--t2); line-height: var(--mv-lh-sec); overflow-wrap: anywhere; }
+.mv-pes-l > .mv-ic { flex: none; width: var(--mv-ic-pp); height: var(--mv-ic-pp); color: var(--t3); margin-right: var(--e1); }
+.mv-pes-l.leve { cursor: default; }
+.mv-pes-l.leve .mv-pes-lt b { color: var(--t2); }
+.mv-pes-tot { display: flex; flex-direction: column; gap: var(--mv-fino); }
+.mv-pes-tot small { font-size: var(--mv-fs-leg); color: var(--t2); }
+.mv-pes-tot b { font-size: var(--mv-fs-pag); font-weight: 650; letter-spacing: var(--mv-ls-tit); font-variant-numeric: tabular-nums; }
+.mv-pes-ano { display: grid; gap: var(--mv-fino); margin-top: var(--e1); }
+.mv-pes-ano-l { display: grid; grid-template-columns: var(--e6) repeat(31, minmax(0, 1fr)); gap: var(--mv-ano-fio); align-items: center; }
+.mv-pes-ano-l > span { font-size: var(--mv-fs-leg); color: var(--t2); font-weight: 600; }
+.mv-pes-ano-l > i { display: block; height: var(--e3); border-radius: var(--mv-fino); background: var(--papel2); }
+.mv-pes-ano-l > i.fs { background: var(--filete); }
+.mv-pes-ano-l > i.x { background: none; }
+.mv-pes-ano-l > i.hoje { box-shadow: 0 0 0 var(--mv-fino) var(--navy); position: relative; z-index: 1; }
+.mv-pes-ano + .mv-leg { margin-top: var(--e3); }
+.mv-pes-passos { display: flex; gap: var(--e1); margin-top: var(--e3); }
+.mv-pes-passos > span { flex: 1; font-size: var(--mv-fs-leg); font-weight: 500; color: var(--t3); border-top: var(--e1) solid var(--filete); padding-top: var(--e1); }
+.mv-pes-passos > span.on { color: var(--navy); border-color: var(--navy); font-weight: 650; }
+.mv-pes-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--e3); }
+.mv-pes-topo h3 { margin: 0; font-size: var(--mv-fs-tit); font-weight: 650; line-height: var(--mv-lh-tit); }
+.mv-pes-nota { margin: var(--e4) 0 0; font-size: var(--mv-fs-leg); color: var(--t2); line-height: var(--mv-lh-sec); }
+.mv-folha-c > .mv-pes-est { margin-bottom: var(--e2); }

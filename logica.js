@@ -61,6 +61,7 @@
     // 12 nov 2026 (app do telemóvel, fatia 1): o que a página liga vem do servidor; um login antigo (sem a lista) só tem a ocorrência
     if (Array.isArray(data && data.funcionalidades)) s.funcionalidades = data.funcionalidades.filter(function (f) { return typeof f === 'string' && /^[a-z-]{1,30}$/.test(f); });
     if (data && data.soTelemovel === true) s.soTelemovel = true;
+    if (data && typeof data.pessoalRecusa === 'string' && /^[A-Z_]{1,40}$/.test(data.pessoalRecusa)) s.pessoalRecusa = data.pessoalRecusa;   // Pessoal F1 (revisão C2): o servidor diz que esta conta não o tem
     if (data && typeof data.ambito === 'string') s.ambito = data.ambito;
     if (Number.isInteger(data && data.contrato)) s.contrato = data.contrato;   // a versão do contrato do servidor (ausente = 0, quem lê decide)
     return s;

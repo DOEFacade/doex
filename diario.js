@@ -64,7 +64,7 @@
   function seteDias(hoje) { var l = []; for (var k = 6; k >= 0; k--) l.push(somarDias(hoje, -k)); return l; }
 
   // ── Cache por conta (privacidade no aparelho) ──
-  function cacheVazia(contaId) { return { contaId: String(contaId || ''), hoje: null, obras: {}, ids: {}, versoes: {}, versoesMinhas: {}, reler: {}, hist: [], locs: {}, registos: {}, dias: {}, painel: {}, tf: {}, bc: {}, tfUlt: {}, lidoEm: '' }; }   // painel: as leituras do Hoje da fatia 2a (hoje.js); tf, bc: as listas dos trabalhos e dos bloqueios do cliente (trabalhos.js); tfUlt: a última Localização de um trabalho, por obra (trabalhos-ecra.js)
+  function cacheVazia(contaId) { return { contaId: String(contaId || ''), hoje: null, obras: {}, ids: {}, versoes: {}, versoesMinhas: {}, reler: {}, hist: [], locs: {}, registos: {}, dias: {}, painel: {}, tf: {}, bc: {}, tfUlt: {}, lidoEm: '' }; }   // (o Pessoal vive à parte, em doeMovel.pessoal: pessoal.js); painel: as leituras do Hoje da fatia 2a (hoje.js); tf, bc: as listas dos trabalhos e dos bloqueios do cliente (trabalhos.js); tfUlt: a última Localização de um trabalho, por obra (trabalhos-ecra.js)
   /** A cache só serve a conta que a escreveu: outra conta recebe uma vazia (e a antiga deita-se fora). */
   function cacheDaConta(cache, contaId) {
     if (!contaId) return cacheVazia('');

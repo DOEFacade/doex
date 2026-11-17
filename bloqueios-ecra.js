@@ -30,6 +30,7 @@
     var el = K.el, bt = K.bt, ic = K.ic, junta = K.junta, limpar = K.limpar, $ = function (id) { return document.getElementById(id); };
     function hoje() { return K.hojeDia().dia; }
     function eu() { var s = K.sessao(); return { nome: (s && s.nome) || '' }; }
+    function soTelemovel() { var s = K.sessao(); return !!(s && s.soTelemovel); }   // a marca do login (casca.js › encarregado)
     function minhaFila() { return K.fila().filter(function (q) { return q.contaId === K.contaId() && q.estado !== 'entregue' && !K.apagar[q.id]; }); }
     function deps() {
       var dp = K.deps(), conta = K.contaId();
@@ -130,7 +131,7 @@
         v.appendChild(gs);
       });
       if (S.filtro === 'ativos' && gl.length) v.appendChild(el('p', 'mv-lead mv-bc-nota', 'Formalizar ao cliente faz-se no computador, pelo GP.'));
-      if (x.data.cortado) v.appendChild(el('p', 'mv-folha-txt', 'A mostrar ' + (x.data.bloqueios || []).length + ' de ' + x.data.total + '. Os outros vêem-se no computador.'));
+      if (x.data.cortado) v.appendChild(el('p', 'mv-folha-txt', 'A mostrar ' + (x.data.bloqueios || []).length + ' de ' + x.data.total + '. ' + (soTelemovel() ? 'Os outros vê-os o GP ou o DO da obra, no computador.' : 'Os outros vêem-se no computador.')));   // a conta só de telemóvel não tem computador (Pessoal, F0)
       if (k) { var y = v.querySelector('[data-k="' + k + '"]'); if (y) K.A.focar(y); }
       carregarMinis(v);
     }

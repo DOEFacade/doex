@@ -6,6 +6,8 @@
 self.DOE_MOVEL_ICONES = {
   ui: {
     obra: [['rect',{x:'6',y:'3.5',width:'12',height:'17',rx:'1'}],['path',{d:'M3.5 20.5h17M10 3.5v17M14 3.5v17M6 8h12M6 12.5h12M6 17h12'}]],
+    cal: [['rect',{x:'4',y:'5',width:'16',height:'15',rx:'2'}],['path',{d:'M4 10h16M9 3v4M15 3v4'}]],   // Pessoal, F1: férias e feriados (o do protótipo dos perfis)
+    etiqueta: [['path',{d:'M3 12V4h8l10 10-8 8z'}],['circle',{cx:'7.5',cy:'8.5',r:'1.3'}]],   // Pessoal, F1: despesas
     chev: [['path',{d:'M9 6l6 6-6 6'}]],
     proc: [['circle',{cx:'11',cy:'11',r:'6.5'}],['path',{d:'M20 20l-4.2-4.2'}]],
     ok: [['path',{d:'M5 12.5l4.5 4.5L19 7.5'}]],

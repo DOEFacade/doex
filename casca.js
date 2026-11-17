@@ -1,4 +1,5 @@
-/* DOE · Telemóvel — a casca da app (1.ª fatia, 12 nov 2026): barra de baixo (Hoje · Tarefas · + · Pessoal · Conta),
+/* DOE · Telemóvel — a casca da app (1.ª fatia, 12 nov 2026): barra de baixo (Hoje · Tarefas · + · Pessoal · Conta;
+   a conta só de telemóvel tem Hoje · + · Conta e a externa Hoje · Tarefas · + · Conta: Pessoal, F0, 16 nov 2026),
    o Hoje (mosaico), o Diário de obra, «Diário · 7 dias», «Por enviar» e a Conta. Desenho: protótipo validado pelo Pedro,
    docs/prototipos/DOEX-Telemovel-App-Prototipo.html. A lógica do diário está em diario.js (testada em Node); a da
    ocorrência continua em logica.js/app.js, igual por dentro: a casca só a abre.
@@ -18,13 +19,15 @@
   var A = null;                                   // a ponte para app.js
   var TE = null;                                  // os ecrãs dos trabalhos em falta (trabalhos-ecra.js, fatia 2a); sem eles, o bloco Trabalhos abre os números
   var BE = null;                                  // os ecrãs dos bloqueios do cliente (bloqueios-ecra.js, fatia 2a, parte 3)
-  var LS_CACHE = 'doeMovel.cache', LS_OBRA_HOJE = 'doeMovel.obraHoje', DB_NOME = 'doeMovelDiario', STORE = 'fila';
+  var PE = null;                                  // os ecrãs do Pessoal, só para ler (pessoal-ecra.js, Pessoal F1, 16 nov 2026); sem eles, o separador fica «Em breve»
+  var LS_CACHE = 'doeMovel.cache', LS_OBRA_HOJE = 'doeMovel.obraHoje', LS_PESSOAL = 'doeMovel.pessoal', DB_NOME = 'doeMovelDiario', STORE = 'fila';
   var ESPERAS_LER = self.DOE_MOVEL_ESPERAS_LER || [5000, 30000, 120000];   // (os testes encurtam-nas)
   var MS_RELER = 30 * 1000, MS_LOCS = 12 * 3600 * 1000, ESPERAS = [2000, 10000, 60000], MS_RASCUNHO = 300;
   var ROTULO = { 'v-hoje': 'Hoje', 'v-fila': 'Por enviar', 'v-diario7': 'Diário · 7 dias', 'v-diario': 'Diário', 'v-registo': 'Ocorrência', 'v-envio': 'Ocorrência', 'v-dia-envio': 'Diário' };
   var TITULO = { 'v-diario': 'Diário de obra', 'v-dia-envio': 'Diário de obra', 'v-diario7': 'Diário · 7 dias', 'v-fila': 'Por enviar' };
   var c = { cache: null, fila: [], rascunhos: {}, vista: '', pilha: [], form: null, envio: null, lendo: false, lidoMs: 0, aviso: '', timer: null, emCurso: false, tentativas: 0, obraHoje: '', entrou: false, apagar: {}, rotaInicial: '', store: null, memoria: false, antes: '',
-    semHojeMv: false, hx: { pag: 0, obra: '', visto: false, y: 0 } };   // fatia 2a: o servidor sem o Hoje novo (nesta abertura); a página Geral/Obras e a obra aberta
+    semHojeMv: false, hx: { pag: 0, obra: '', visto: false, y: 0 },   // fatia 2a: o servidor sem o Hoje novo (nesta abertura); a página Geral/Obras e a obra aberta
+    funcsHoje: null, recusaHoje: '' };   // Pessoal, F1: as funcionalidades do GET /movel/hoje lido NESTA abertura (o servidor decide o Pessoal por conta; sem elas, as do login)
   var $ = function (id) { return document.getElementById(id); };
   function feriados() { return self.DOE_MOVEL_FERIADOS || {}; }
 
@@ -84,12 +87,12 @@
     if (!c.cache || c.cache.contaId !== id) {
       var lido = null; try { lido = JSON.parse(lsLer(LS_CACHE) || 'null'); } catch (e) { lido = null; }
       c.cache = D.cacheDaConta(lido, id);
-      if (lido && lido.contaId !== id) lsApagar(LS_CACHE);   // a de outra conta sai do telemóvel
+      if (lido && lido.contaId !== id) { lsApagar(LS_CACHE); lsApagar(LS_PESSOAL); }   // a de outra conta sai do telemóvel (também a cópia do Pessoal)
     }
     return c.cache;
   }
   function gravarCache() { if (c.cache && c.cache.contaId) lsGravar(LS_CACHE, JSON.stringify(c.cache)); }
-  function apagarCache() { c.cache = null; lsApagar(LS_CACHE); lsApagar(LS_OBRA_HOJE); c.obraHoje = ''; c.form = null; c.envio = null; c.lidoMs = 0; }
+  function apagarCache() { c.cache = null; lsApagar(LS_CACHE); lsApagar(LS_OBRA_HOJE); lsApagar(LS_PESSOAL); if (PE) PE.aoSair(); c.obraHoje = ''; c.form = null; c.envio = null; c.lidoMs = 0; }
 
   // ── O dia (o do servidor) e a obra do Hoje ──
   function hojeDia() {
@@ -156,14 +159,14 @@
         var chave = H.chaveDe(obras()), rh = await H.lerHoje(dp, chave);
         if (contaId() !== conta) return;
         if (rh.ok) {
-          H.guardar(cache(), chave, rh.data); usouHoje = true;
+          H.guardar(cache(), chave, rh.data); usouHoje = true; funcsDoHoje(rh.data);
           var fora = chave === 'todas' && modoHoje() === 'uma' ? obraHoje() : '';   // a obra escolhida fora das minhas: lê-se ela
           if (fora && !(rh.data.obras || []).some(function (o) { return o.id === fora; })) {
             var rf = await H.lerHoje(dp, fora);
             if (contaId() !== conta) return;
             if (rf.ok) H.guardar(cache(), fora, rf.data); else if (talvezLogin(D.mensagemDiario(rf))) return;
           }
-        } else if (H.semHoje(rh)) { c.semHojeMv = true; c.externa = rh.code === 'CONTA_EXTERNA'; }   // a externa não tem esta fatia: nem «Em breve»
+        } else if (H.semHoje(rh)) { marcarSemHoje(rh); }   // a externa não tem esta fatia: nem «Em breve»
         else { falhaLeitura(rh); return; }
       }
       if (!usouHoje) {
@@ -197,12 +200,28 @@
     c.aviso = r.code === 'DIARIO_POR_INSTALAR' || r.code === 'MOVEL_POR_INSTALAR' ? m.texto : '';
     if (online() && m.accao === 'repetir') { var ms = ESPERAS_LER[Math.min(c.falhasLer || 0, ESPERAS_LER.length - 1)]; c.falhasLer = (c.falhasLer || 0) + 1; clearTimeout(c.timerLer); c.timerLer = setTimeout(function () { ler(true); }, Math.max(ms, (m.retryAfter || 0) * 1000)); }
   }
+  /** O servidor não tem o Hoje novo para esta conta (nesta abertura). Se passou a dizer que é externa, a barra perde o
+      Pessoal logo (quemVe), sem esperar pelo ecrã seguinte. */
+  /** Pessoal, F1: as funcionalidades do Hoje lido agora decidem o separador (uma conta marcada só de telemóvel ou externa
+      depois de entrar perde-o sem ter de entrar outra vez). Muda a barra só se o Pessoal mudou. */
+  function funcsDoHoje(data) {
+    if (!data || !Array.isArray(data.funcionalidades)) return;
+    var antes = pessoalAtivo() + '|' + quemVe().pessoal; c.funcsHoje = data.funcionalidades.slice(); c.recusaHoje = self.DoeMovelPessoal ? self.DoeMovelPessoal.recusaDe(data) : '';
+    if (pessoalAtivo() + '|' + quemVe().pessoal !== antes) desenharNav();
+  }
+  function funcsPessoal() { return c.funcsHoje || funcs(); }
+  /** Revisão de f673e387 (C2): o servidor da F1 diz `pessoalRecusa` a uma conta que nunca terá o Pessoal (VIEWER, ADMIN sem
+      pessoa, pessoa inactiva…): o do Hoje lido nesta abertura, senão o do login. Ausente = tem, ou é uma Edge de antes. */
+  function pessoalRecusa() { var s = sessao(); return c.funcsHoje ? c.recusaHoje : ((s && s.pessoalRecusa) || ''); }
+  /** O separador Pessoal abre (e não «Em breve»): a conta vê-o (quemVe), o servidor dá-lho e não disse «não» nesta abertura. */
+  function pessoalAtivo() { return !!PE && quemVe().pessoal && PE.ativo(); }
+  function marcarSemHoje(r) { var antes = c.externa; c.semHojeMv = true; c.externa = r.code === 'CONTA_EXTERNA'; if (c.externa !== antes) desenharNav(); }
   /** A obra escolhida no Hoje (fora das minhas): só a leitura dela. */
   async function lerPainelObra(ob) {
     if (!temHojeMv() || !online() || !A.sessaoValida()) return;
     var conta = contaId(), r = await H.lerHoje(deps(), ob);
     if (contaId() !== conta) return;
-    if (r.ok) { H.guardar(cache(), ob, r.data); gravarCache(); } else if (H.semHoje(r)) { c.semHojeMv = true; c.externa = r.code === 'CONTA_EXTERNA'; } else if (talvezLogin(D.mensagemDiario(r))) return;
+    if (r.ok) { H.guardar(cache(), ob, r.data); gravarCache(); funcsDoHoje(r.data); } else if (H.semHoje(r)) { marcarSemHoje(r); } else if (talvezLogin(D.mensagemDiario(r))) return;
     redesenhar();
   }
   async function lerDiasDe(ob, dp, conta) {
@@ -238,14 +257,14 @@
   }
 
   // ── Navegação: uma pilha de ecrãs, com o «voltar» do telemóvel (history) ──
-  function ehCasca(v) { return v === 'v-hoje' || v === 'v-diario' || v === 'v-dia-envio' || v === 'v-diario7' || v === 'v-fila' || !!(TE && TE.VISTAS.indexOf(v) >= 0) || !!(BE && BE.VISTAS.indexOf(v) >= 0); }
+  function ehCasca(v) { return v === 'v-hoje' || v === 'v-diario' || v === 'v-dia-envio' || v === 'v-diario7' || v === 'v-fila' || !!(TE && TE.VISTAS.indexOf(v) >= 0) || !!(BE && BE.VISTAS.indexOf(v) >= 0) || !!(PE && PE.VISTAS.indexOf(v) >= 0); }
   /** Um ecrã de formulário ou de «Registado» só volta (voltar, entrar outra vez) se ainda houver o que mostrar. */
-  function vistaViva(v) { return (v !== 'v-tf-form' || !!(TE && TE.temForm())) && (v !== 'v-tf-envio' || !!(TE && TE.temEnvio())) && (v !== 'v-bc-form' || !!(BE && BE.temForm())) && (v !== 'v-bc-envio' || !!(BE && BE.temEnvio())); }
+  function vistaViva(v) { return (v !== 'v-tf-form' || !!(TE && TE.temForm())) && (v !== 'v-tf-envio' || !!(TE && TE.temEnvio())) && (v !== 'v-bc-form' || !!(BE && BE.temForm())) && (v !== 'v-bc-envio' || !!(BE && BE.temEnvio())) && (!(PE && PE.VISTAS.indexOf(v) >= 0) || pessoalAtivo()); }
   function mostrar(v) {
     if (v !== c.vista) tirarToast();
     c.vista = v;
     A.ir(v);
-    if (v === 'v-hoje') desenharHoje(); else if (v === 'v-diario') desenharDiario(true); else if (v === 'v-dia-envio') desenharDiaEnvio(); else if (v === 'v-diario7') desenharDiario7(); else if (v === 'v-fila') desenharFila(); else if (TE && TE.VISTAS.indexOf(v) >= 0) TE.desenhar(v); else if (BE && BE.VISTAS.indexOf(v) >= 0) BE.desenhar(v);
+    if (v === 'v-hoje') desenharHoje(); else if (v === 'v-diario') desenharDiario(true); else if (v === 'v-dia-envio') desenharDiaEnvio(); else if (v === 'v-diario7') desenharDiario7(); else if (v === 'v-fila') desenharFila(); else if (TE && TE.VISTAS.indexOf(v) >= 0) TE.desenhar(v); else if (BE && BE.VISTAS.indexOf(v) >= 0) BE.desenhar(v); else if (PE && PE.VISTAS.indexOf(v) >= 0) PE.desenhar(v);
     desenharNav();
     var t = document.querySelector('#' + v + ' [data-foco-inicial]'); if (t) A.focar(t);
   }
@@ -265,6 +284,15 @@
     try { history.replaceState(c.hx.obra ? { mvV: 'v-hoje', n: 1, hxObra: c.hx.obra } : { mvV: 'v-hoje', n: 1 }, ''); } catch (e) { /* nada */ }
     mostrar('v-hoje');
     ler(false);
+  }
+  /** O separador Pessoal (F1): por cima do Hoje (o «voltar» do telemóvel volta ao Hoje), lido a pedido. */
+  function irPessoal() {
+    if (c.vista === 'v-registo') A.gravarJa();
+    gravarRascunhoJa();
+    c.hx.obra = ''; c.pilha = ['v-hoje', 'v-pessoal'];
+    try { history.replaceState({ mvV: 'v-hoje', n: 1 }, ''); history.pushState({ mvV: 'v-pessoal', n: 2 }, ''); } catch (e) { /* sem histórico */ }
+    mostrar('v-pessoal');
+    PE.ler(false);
   }
   function voltar() {
     gravarRascunhoJa();
@@ -290,26 +318,37 @@
     if (v === 'v-diario' && !c.form) v = 'v-hoje';
     if (!vistaViva(v)) v = 'v-hoje';
     mostrar(v);
-    if (v === 'v-hoje') ler(false);
+    if (v === 'v-hoje') ler(false); else if (v === 'v-pessoal' && PE) PE.ler(false);
   }
   function rotuloVoltar() { var p = c.pilha.length > 1 ? c.pilha[c.pilha.length - 2] : 'v-hoje'; return ROTULO[p] || 'Hoje'; }
 
   // ── Barra de baixo: Hoje · Tarefas · + · Pessoal · Conta ──
+  /** Quem vê o quê na barra: a ÚNICA regra (Pessoal, F0, 16 nov 2026; contrato docs/analises/Movel-Pessoal-Contrato.md).
+      - A conta só de telemóvel (o login diz `soTelemovel`, o `so_movel` da conta no servidor: encarregados, operários)
+        não tem computador: nem Tarefas nem Pessoal (decisão do Pedro, 16 nov 2026, como no protótipo do encarregado).
+      - O Pessoal é só de quem tem conta na app do computador e é da DOE: também não o vê a conta externa (o servidor
+        diz `CONTA_EXTERNA` no Hoje; c.externa), a quem o «+» já não promete nada.
+      A página não tem regra de papéis e não adivinha: sem a marca do servidor (sessão antiga) é uma conta normal. Na F1
+      o servidor passa a dizê-lo em `funcionalidades` (`pessoal`, do login e do /movel/hoje). */
+  function quemVe() { var so = encarregado(), rc = pessoalRecusa(); return { tarefas: !so, pessoal: !so && !c.externa && (!rc || rc === 'DB_INDISPONIVEL') && !(PE && PE.recusado()) }; }   // DB_INDISPONIVEL é passageiro: o separador fica, sem abrir   // F1: o GET /movel/pessoal pode dizer SEM_PESSOAL ou CONTA_EXTERNA (marcada depois de entrar): sai nesta abertura
   function desenharNav() {
     var n = $('nav'); if (!n) return;
     limpar(n);
+    var ve = quemVe(), lugares = 3 + (ve.tarefas ? 1 : 0) + (ve.pessoal ? 1 : 0);
+    n.classList.toggle('cinco', lugares === 5); n.classList.toggle('quatro', lugares === 4); n.classList.toggle('tres', lugares === 3);
     var dest = function (k, nomeIc, rot, embreve) {
       var b = bt('mv-dest'); b.appendChild(ic(nomeIc)); b.appendChild(el('span', null, rot));
-      if (k === 'hoje' && c.vista === 'v-hoje') b.setAttribute('aria-current', 'page');
+      if ((k === 'hoje' && c.vista === 'v-hoje') || (k === 'pessoal' && c.vista === 'v-pessoal')) b.setAttribute('aria-current', 'page');
       if (embreve) { b.setAttribute('aria-disabled', 'true'); b.classList.add('embreve'); b.addEventListener('click', function () { toast(embreve); }); }
-      else b.addEventListener('click', function () { A.fecharFolhas(); irHoje(); });
+      else b.addEventListener('click', function () { A.fecharFolhas(); if (k === 'pessoal') irPessoal(); else irHoje(); });
+      b.setAttribute('data-dest', k);
       return b;
     };
     n.appendChild(dest('hoje', 'casa', 'Hoje'));
-    n.appendChild(dest('tarefas', 'lista', 'Tarefas', 'Tarefas chega em breve. Por agora vês as tuas tarefas no computador.'));
+    if (ve.tarefas) n.appendChild(dest('tarefas', 'lista', 'Tarefas', 'Tarefas chega em breve. Por agora vês as tuas tarefas no computador.'));
     var reg = bt('mv-reg'); reg.setAttribute('aria-label', 'Registar'); reg.setAttribute('aria-haspopup', 'dialog'); reg.id = 'b-registar'; reg.appendChild(ic('mais'));
     reg.addEventListener('click', abrirRegistar); n.appendChild(reg);
-    n.appendChild(dest('pessoal', 'pessoa', 'Pessoal', 'Pessoal chega em breve: férias e despesas. Por agora, no computador.'));
+    if (ve.pessoal) n.appendChild(dest('pessoal', 'pessoa', 'Pessoal', pessoalAtivo() ? null : (pessoalRecusa() === 'DB_INDISPONIVEL' && self.DoeMovelPessoal ? self.DoeMovelPessoal.SEM_CONFIRMAR : 'Pessoal chega em breve: férias e despesas. Por agora, no computador.')));   // F1: abre quando o servidor o dá; senão (Edge de antes, sem `pessoal`) «Em breve»
     var s = sessao(), conta = bt('mv-dest'); conta.id = 'b-conta';
     conta.setAttribute('aria-label', 'Conta' + (s && s.nome ? ': ' + s.nome : '')); conta.setAttribute('aria-haspopup', 'dialog');
     junta(conta, el('span', 'mv-av-n', M.iniciais(s && s.nome) || '·'), el('span', null, 'Conta'));
@@ -376,9 +415,9 @@
         b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
         cc.appendChild(b);
       });
-      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ['material', 'entrega e despesa']);
+      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ['material', 'entrega'], quemVe().pessoal ? ['despesa'] : []);   // a despesa é do Pessoal: a conta só de telemóvel não a tem (Pessoal, F0)
       if (c.externa) emb = [];   // revisão da parte 4: uma conta externa não chega a nada da fatia 2 (contrato): não se lhe promete
-      if (emb.length) cc.appendChild(el('p', 'mv-folha-txt mv-embreve-f', 'Em breve: ' + emb.slice(0, -1).join(', ') + ', ' + emb[emb.length - 1] + '.'));
+      if (emb.length) cc.appendChild(el('p', 'mv-folha-txt mv-embreve-f', 'Em breve: ' + (emb.length > 1 ? emb.slice(0, -1).join(', ') + ' e ' : '') + emb[emb.length - 1] + '.'));
     } });
   }
 
@@ -1567,7 +1606,7 @@
         if (r.rede) { erro(r.online === false ? 'Sem rede. Para mudar a palavra-passe é preciso rede.' : 'Não sei se a palavra-passe mudou (a resposta perdeu-se): experimenta entrar com a nova.'); return; }   // B1
         if (r.code === 'PASSWORD_ALTERADA_ENTRA_DE_NOVO') { A.fecharFolhas(); apagarCache(); A.sairCom(D.mensagemDiario(r).texto); return; }
         if (r.code === 'DEMASIADOS_PEDIDOS' || r.status === 429) { espera = Date.now() + Math.max(1, r.retryAfter || 60) * 1000; erro('Demasiadas tentativas. Tenta outra vez daqui a ' + D.textoEspera(r.retryAfter || 60) + '.'); return; }
-        if (r.code === 'MOVEL_POR_INSTALAR') { erro('A mudança de palavra-passe pelo telemóvel ainda está a ser preparada no servidor. Tenta mais tarde, ou muda-a no computador.'); return; }
+        if (r.code === 'MOVEL_POR_INSTALAR') { erro('A mudança de palavra-passe pelo telemóvel ainda está a ser preparada no servidor. Tenta mais tarde, ' + (encarregado() ? 'ou pede ao escritório que a mude.' : 'ou muda-a no computador.')); return; }   // a conta só de telemóvel não tem computador (Pessoal, F0)
         var m = D.mensagemDiario(r);
         if (talvezLogin(m)) { A.fecharFolhas(); return; }
         erro(m.texto.replace(/ Fica no telemóvel;?[^.]*\./, '').replace(/; tento outra vez\.?/, '.'));
@@ -1640,7 +1679,7 @@
   }
   function desenharHojeSeVisivel() { if (c.vista === 'v-hoje' && A.vista() === 'v-hoje') desenharHoje(); }
   function desenharFilaSeVisivel() { if (c.vista === 'v-fila' && A.vista() === 'v-fila') desenharFila(); }
-  function redesenhar() { desenharHojeSeVisivel(); desenharFilaSeVisivel(); if (TE) TE.redesenhar(); if (BE) BE.redesenhar(); }
+  function redesenhar() { desenharHojeSeVisivel(); desenharFilaSeVisivel(); if (TE) TE.redesenhar(); if (BE) BE.redesenhar(); if (PE) PE.redesenhar(); }
 
   // ── Ganchos chamados por app.js ──
   function rotaDoEndereco() {
@@ -1659,7 +1698,7 @@
   }
   function antesDoLogin() { var v = A.vista(); if (v && v !== 'v-login') c.antes = v; gravarRascunhoJa(); }   // o rascunho a meio grava-se já (com a conta de agora)
   function depoisDoLogin(contaMudou) {
-    c.semHojeMv = false; c.externa = false;   // a sessão nova traz as funcionalidades do servidor de agora
+    c.semHojeMv = false; c.externa = false; c.funcsHoje = null; c.recusaHoje = ''; if (PE) PE.aoSair();   // a sessão nova traz as funcionalidades do servidor de agora (também o Pessoal)
     if (contaMudou) { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); c.cache = null; c.form = null; c.envio = null; c.lidoMs = 0; c.obraHoje = ''; c.antes = ''; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; }   // 2.ª revisão: também o formulário, o envio e o «fora» dos trabalhos e bloqueios
     var v = c.antes; c.antes = '';
     if (v === 'v-registo' || v === 'v-envio') { c.pilha = ['v-hoje', 'v-registo']; try { history.replaceState({ mvV: 'v-registo', n: 2 }, ''); } catch (e) { /* nada */ } c.vista = 'v-registo'; A.abrirOcorrencia(); desenharNav(); }   // M7: volta ao formulário da ocorrência
@@ -1667,7 +1706,7 @@
     else abrirInicial();
     ler(true); drenar(true);
   }
-  function aoSair() { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); clearTimeout(c.timer); clearTimeout(c.timerAdiado); gravarRascunhoJa(); apagarCache(); c.pilha = []; c.vista = ''; c.entrou = false; c.semHojeMv = false; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; }
+  function aoSair() { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (PE) PE.aoSair(); c.funcsHoje = null; c.recusaHoje = ''; clearTimeout(c.timer); clearTimeout(c.timerAdiado); gravarRascunhoJa(); apagarCache(); c.pilha = []; c.vista = ''; c.entrou = false; c.semHojeMv = false; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; }
   async function ligar(ponte) {
     A = ponte;
     c.store = await abrirStore(); c.memoria = !!c.store.memoria;
@@ -1685,9 +1724,10 @@
     c.rotaInicial = rotaDoEndereco();
     if (self.DoeMovelTfEcra) { TE = self.DoeMovelTfEcra.criar(kitTf()); TE.ligar(); TE.carregarRascunhos(rascF); Object.assign(ROTULO, TE.ROTULO); Object.assign(TITULO, TE.TITULO); }
     if (self.DoeMovelBcEcra) { BE = self.DoeMovelBcEcra.criar(kitTf()); BE.ligar(); BE.carregarRascunhos(rascF); Object.assign(ROTULO, BE.ROTULO); Object.assign(TITULO, BE.TITULO); }
+    if (self.DoeMovelPesEcra) { PE = self.DoeMovelPesEcra.criar(Object.assign(kitTf(), { funcsPessoal: funcsPessoal, desenharNav: desenharNav })); Object.assign(ROTULO, PE.ROTULO); Object.assign(TITULO, PE.TITULO); }   // Pessoal, F1
     window.addEventListener('popstate', aoVoltarHist);
-    window.addEventListener('online', function () { c.tentativas = 0; c.falhasLer = 0; redesenhar(); if (c.vista === 'v-diario') desenharBarraDia(); if (tem('diario') && A.sessaoValida()) ler(true); else drenar(false); });   // 3.ª revisão: primeiro LER (o contrato), a fila segue no fim da leitura
-    window.addEventListener('offline', function () { redesenhar(); if (c.vista === 'v-diario') desenharBarraDia(); });
+    window.addEventListener('online', function () { c.tentativas = 0; c.falhasLer = 0; redesenhar(); if (PE) PE.aoMudarRede(); if (c.vista === 'v-diario') desenharBarraDia(); if (tem('diario') && A.sessaoValida()) ler(true); else drenar(false); });   // 3.ª revisão: primeiro LER (o contrato), a fila segue no fim da leitura
+    window.addEventListener('offline', function () { redesenhar(); if (PE) PE.aoMudarRede(); if (c.vista === 'v-diario') desenharBarraDia(); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) gravarRascunhoJa(); else if (sessao()) { if (tem('diario') && A.sessaoValida()) ler(false); else drenar(false); } });   // a leitura drena no fim
     window.addEventListener('pagehide', gravarRascunhoJa);
     ['d-cam', 'd-gal'].forEach(function (id) { var i = $(id); if (i) i.addEventListener('change', function (ev) { juntarFotos(ev.target.files).then(function () { ev.target.value = ''; }); }); });
@@ -1718,6 +1758,7 @@
   self.DoeMovelCasca = {
     ligar: ligar, abrirInicial: abrirInicial, antesDoLogin: antesDoLogin, depoisDoLogin: depoisDoLogin, aoSair: aoSair,
     voltar: voltar, irHoje: irHoje, rotuloVoltar: rotuloVoltar, ehCasca: ehCasca,
+    destino: function (v) { return v === 'v-hoje' || v === 'v-pessoal'; },   // os ecrãs com a barra de destinos e sem cabeçalho (Pessoal, F1)
     titulo: function (v) { if (v === 'v-diario' && c.form && c.form.dia !== hojeDia().dia) return 'Diário de ' + D.textoDiaCurto(c.form.dia); return TITULO[v] || ''; },
     aoMudarFila: function (o) { if (o && o.recebida && ehCasca(c.vista)) toast('Ocorrência ' + o.recebida + ' recebida', { ms: 3500 }); redesenhar(); },
     nDiariosPorEnviar: function () { return minhaFila().length; },
