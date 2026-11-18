@@ -194,8 +194,8 @@
   // ── Vistas, cabeçalho e progresso ──
   // As vistas: as da ocorrência (login, registo, envio) e as da casca (casca.js). Cada uma diz que barra tem em baixo:
   // a do formulário (por cima da barra de destinos, com «‹ Hoje» no cabeçalho) ou, no Hoje, a barra de destinos.
-  var VISTAS = ['v-login', 'v-registo', 'v-envio', 'v-hoje', 'v-diario', 'v-dia-envio', 'v-diario7', 'v-fila', 'v-tf', 'v-tf-form', 'v-tf-envio', 'v-bc', 'v-bc-form', 'v-bc-envio', 'v-pessoal', 'v-pes-ferias', 'v-pes-faltas', 'v-pes-despesas'];   // + o Pessoal (pessoal-ecra.js, F1)
-  var BARRA_DE = { 'v-registo': 'barra-reg', 'v-envio': 'barra-env', 'v-diario': 'barra-dia', 'v-dia-envio': 'barra-dia-env', 'v-diario7': 'barra-d7', 'v-tf-form': 'barra-tf', 'v-tf-envio': 'barra-tf-env', 'v-bc-form': 'barra-bc', 'v-bc-envio': 'barra-bc-env' };   // v-tf e v-bc (as listas) não têm barra em baixo
+  var VISTAS = ['v-login', 'v-registo', 'v-envio', 'v-hoje', 'v-diario', 'v-dia-envio', 'v-diario7', 'v-fila', 'v-tf', 'v-tf-form', 'v-tf-envio', 'v-bc', 'v-bc-form', 'v-bc-envio', 'v-pessoal', 'v-pes-ferias', 'v-pes-faltas', 'v-pes-despesas', 'v-pes-form', 'v-pes-feito'];   // + o Pessoal (pessoal-ecra.js, F1; o pedido e o «Feito» da F2)
+  var BARRA_DE = { 'v-registo': 'barra-reg', 'v-envio': 'barra-env', 'v-diario': 'barra-dia', 'v-dia-envio': 'barra-dia-env', 'v-diario7': 'barra-d7', 'v-tf-form': 'barra-tf', 'v-tf-envio': 'barra-tf-env', 'v-bc-form': 'barra-bc', 'v-bc-envio': 'barra-bc-env', 'v-pes-form': 'barra-pes', 'v-pes-feito': 'barra-pes-feito' };   // v-tf e v-bc (as listas) não têm barra em baixo
   function ir(vista) {
     var mudou = est.vista !== vista;
     est.vista = vista;
@@ -208,7 +208,7 @@
     $('prog').hidden = vista !== 'v-registo';
     $('barra').hidden = !BARRA_DE[vista];
     Object.keys(BARRA_DE).forEach(function (v) { var b = $(BARRA_DE[v]); if (b) b.hidden = v !== vista; });
-    $('barra').classList.toggle('sem-fio', vista === 'v-envio' || vista === 'v-dia-envio' || vista === 'v-tf-envio' || vista === 'v-bc-envio');
+    $('barra').classList.toggle('sem-fio', vista === 'v-envio' || vista === 'v-dia-envio' || vista === 'v-tf-envio' || vista === 'v-bc-envio' || vista === 'v-pes-feito');
     if ($('nav')) $('nav').hidden = !destino;
     if (C && vista !== 'v-login') C.definirVista(vista);
     desenharCabecalho();
@@ -711,19 +711,37 @@
       // enquanto escreve a barra esconde-se e volta ao fechar o teclado. Android (a página encolhe) e computador: fica.
       raiz.classList.toggle('mv-teclado-tapa', aberto && tapado > 80);
       medirBarra();
-      if (aberto) { garantirCampoVisivel(vv); garantirEntrarVisivel(vv); }
+      if (!aberto) raiz.style.removeProperty('--mv-campo-max');
+      if (aberto) garantirEntrarVisivel(vv);
+      if (campoComFoco()) garantirCampoVisivel(vv);   // também quando o teclado é pequeno ou flutuante e não foi detectado como aberto
     };
     var depois = function () { clearTimeout(tAj); tAj = setTimeout(ajustar, 60); };
+    var aoFoco = function () { depois(); setTimeout(ajustar, 300); setTimeout(ajustar, 700); };   // o teclado abre a meio: repete-se depois da animação
     if (vv) { vv.addEventListener('resize', ajustar); vv.addEventListener('scroll', ajustar); }
     window.addEventListener('resize', depois);
-    document.addEventListener('focusin', depois);
+    document.addEventListener('focusin', aoFoco);
     document.addEventListener('focusout', depois);
   }
-  function garantirCampoVisivel(vv) {   // o campo da descrição nunca fica tapado pela barra nem pelo cabeçalho
-    var a = document.activeElement; if (!a || a.tagName !== 'TEXTAREA' || $('barra').hidden || $('cab').hidden) return;   // a descrição da ocorrência e «O que se fez» do diário
-    var ref = !$('prog').hidden ? $('prog') : $('cab');
-    var r = a.getBoundingClientRect(), topo = ref.getBoundingClientRect().bottom + 8;
-    var fundo = (vv ? vv.offsetTop + vv.height : window.innerHeight) - $('barra').offsetHeight - 8;
+  // O campo onde se escreve nunca fica tapado pelo teclado, pela barra nem pelo cabeçalho: a descrição da ocorrência,
+  // «O que se fez» do diário, o nome da equipa (dentro da folha, que rola por dentro) e as procuras. Corre a cada
+  // mudança do teclado e logo a seguir ao foco (o teclado demora a abrir e o browser rola só uma vez, antes dele).
+  function garantirCampoVisivel(vv) {
+    var a = document.activeElement; if (!a || est.vista === 'v-login') return;   // a entrada tem o seu (garantirEntrarVisivel)
+    var ehTexto = a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|search|password|email)$/.test(a.type)); if (!ehTexto) return;
+    var visTopo = vv ? vv.offsetTop : 0, visFundo = (vv ? vv.offsetTop + vv.height : window.innerHeight);
+    var raiz = document.documentElement, dentro = a.closest ? a.closest('.mv-folha-c') : null, r = a.getBoundingClientRect();
+    if (dentro) {   // numa folha: rola o corpo da folha, não a página
+      var cr = dentro.getBoundingClientRect(), t = Math.max(cr.top, visTopo) + 8, f = Math.min(cr.bottom, visFundo) - 8;
+      if (r.top < t) dentro.scrollTop += r.top - t;
+      else if (r.bottom > f) dentro.scrollTop += Math.min(r.bottom - f, r.top - t);
+      return;
+    }
+    var cab = $('cab'), prog = $('prog'), barra = $('barra');
+    var ref = prog && !prog.hidden ? prog : (cab && !cab.hidden ? cab : null);
+    var topo = Math.max(visTopo, ref ? ref.getBoundingClientRect().bottom : 0) + 8;
+    var fundo = visFundo - (barra && !barra.hidden ? barra.offsetHeight : 0) - 8;
+    // a caixa de texto nunca é mais alta do que o que se vê: o que se escreve segue o cursor por dentro dela
+    if (a.tagName === 'TEXTAREA') raiz.style.setProperty('--mv-campo-max', Math.max(96, Math.floor(fundo - topo)) + 'px');
     var precisa = Math.min(r.height, Math.max(0, fundo - topo));
     if (r.top < topo) window.scrollBy(0, r.top - topo);
     else if (r.top + precisa > fundo) window.scrollBy(0, r.top + precisa - fundo);

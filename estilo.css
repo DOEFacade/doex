@@ -310,6 +310,9 @@ h1, h2, p { margin: 0; }
 .mv-btn:disabled { opacity: var(--mv-op-ocupado); cursor: default; }
 .mv-btn.ghost { border-color: transparent; background: none; color: var(--navy); }
 .mv-btn.compacto { min-height: var(--mv-alvo); }
+/* teclado aberto: a caixa de texto cabe no que se vê (app.js mede --mv-campo-max) e o texto segue o cursor por dentro dela */
+html.mv-teclado .mv-campo { max-height: var(--mv-campo-max, none); min-height: min(var(--mv-campo-h), var(--mv-campo-max, 100dvh)); }
+html.mv-teclado .mv-campo.curto { min-height: min(var(--mv-campo-h-p), var(--mv-campo-max, 100dvh)); }
 /* teclado aberto: a barra sobe com ele (--mv-tecl) e fica compacta (sem a nota, botão de 48 px) */
 html.mv-teclado .mv-barra { padding-bottom: var(--e2); }
 html.mv-teclado #barra-nota { display: none; }
@@ -829,3 +832,39 @@ button.mv-pes-l:active { filter: var(--mv-premido); }
 .mv-pes-topo h3 { margin: 0; font-size: var(--mv-fs-tit); font-weight: 650; line-height: var(--mv-lh-tit); }
 .mv-pes-nota { margin: var(--e4) 0 0; font-size: var(--mv-fs-leg); color: var(--t2); line-height: var(--mv-lh-sec); }
 .mv-folha-c > .mv-pes-est { margin-bottom: var(--e2); }
+
+/* ── Pessoal, F2 (17 nov 2026): pedir, corrigir e cancelar férias e faltas (pessoal-ecra.js). Do protótipo validado
+   docs/prototipos/telemovel-perfis/pessoal.js (as acções rápidas, o calendário do mês, os passos). Só tokens de 13b. ── */
+.mv-pes-rap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--e2); margin-top: var(--e5); }
+.mv-pes-rap > button { display: flex; flex-direction: column; align-items: center; gap: var(--e2); min-height: var(--mv-alvo); padding: 0; border: 0; background: none; font: inherit; font-size: var(--mv-fs-leg); font-weight: 600; line-height: var(--mv-lh-sec); color: var(--tinta); text-align: center; }
+.mv-pes-rap .c { width: var(--mv-alvo-g); height: var(--mv-alvo-g); border-radius: 50%; display: grid; place-items: center; background: var(--papel); color: var(--navy); box-shadow: var(--mv-borda-fina); }
+.mv-pes-rap > button.pri .c { background: var(--navy); color: var(--on-navy); box-shadow: none; }
+.mv-pes-rap > button.embreve, .mv-pes-rap > button.embreve .c { color: var(--t3); }
+.mv-pes-rap > button:active .c { filter: var(--mv-premido); }
+.mv-pes-acao { margin-top: var(--e5); }
+.mv-pes-acao .mv-ic { margin-right: var(--e2); }
+.mv-pes-passo { margin: var(--e4) 0 var(--e1); font-weight: 600; }
+.mv-pes-q { margin: 0 0 var(--e1); }
+.mv-pes-form .mv-pes-q + .mv-lead { margin-bottom: var(--e3); }
+.mv-pes-form > .mv-faixa { margin: var(--e3) 0 0; }
+.mv-pes-form > .mv-eq { border-top: 0; }
+.mv-pes-horas { margin-top: var(--e2); }
+.mv-pes-horas .mv-rot { margin-top: var(--e2); }
+.mv-pes-oo { margin-top: var(--e3); }
+.mv-obrig { color: var(--neg); }
+.mv-radio.mv-caixa { border-radius: var(--r-s); }   /* a escolha de várias (obras, «Tenho documento comprovativo»): caixa, não círculo */
+.mv-faixa.neg { background: var(--negF); border-left-color: var(--neg); }
+.mv-faixa.neg .mv-ic { color: var(--neg); }
+/* o mês do início, só para ler: marcado liso, pendente com trama, feriado riscado, fecho com contorno, o escolhido a navy */
+.mv-pes-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--e1); text-align: center; }
+.mv-pes-cal b { font-size: var(--mv-fs-leg); font-weight: 650; color: var(--t3); padding: var(--e1) 0; }
+.mv-pes-cal span { height: calc(var(--e6) + var(--e1)); border-radius: var(--r-m); display: grid; place-items: center; font-size: var(--mv-fs-sec); font-variant-numeric: tabular-nums; }
+.mv-pes-cal span.fs { color: var(--t3); }
+.mv-pes-cal span.fer { color: var(--t3); text-decoration: line-through; }
+.mv-pes-cal span.fec { box-shadow: var(--mv-borda-fina); }
+.mv-pes-cal span.mar { background: var(--posF); color: var(--pos); }
+.mv-pes-cal span.pen { background: repeating-linear-gradient(-45deg, var(--amaF) 0 var(--mv-trama), var(--papel) var(--mv-trama) var(--mv-trama-p)); color: var(--ama); font-weight: 650; }
+.mv-pes-cal span.sel { background: var(--navy); color: var(--on-navy); font-weight: 650; box-shadow: none; }
+.mv-pes-cal span.sel.fs, .mv-pes-cal span.sel.fer { background: var(--navyF); color: var(--navy); }
+.mv-pes-cal + .mv-leg { margin-top: var(--e3); }
+.mv-leg i.sel { background: var(--navy); }
