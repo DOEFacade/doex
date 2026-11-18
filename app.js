@@ -711,12 +711,15 @@
       // enquanto escreve a barra esconde-se e volta ao fechar o teclado. Android (a página encolhe) e computador: fica.
       raiz.classList.toggle('mv-teclado-tapa', aberto && tapado > 80);
       medirBarra();
-      if (!aberto) raiz.style.removeProperty('--mv-campo-max');
+      if (!aberto) {
+        raiz.style.removeProperty('--mv-campo-max');
+        var fl = document.querySelector('.mv-folha[open]'); if (fl && !campoComFoco()) { fl.style.translate = ''; fl.style.maxHeight = ''; }
+      }
       if (aberto) garantirEntrarVisivel(vv);
       if (campoComFoco()) garantirCampoVisivel(vv);   // também quando o teclado é pequeno ou flutuante e não foi detectado como aberto
     };
     var depois = function () { clearTimeout(tAj); tAj = setTimeout(ajustar, 60); };
-    var aoFoco = function () { depois(); setTimeout(ajustar, 300); setTimeout(ajustar, 700); };   // o teclado abre a meio: repete-se depois da animação
+    var aoFoco = function () { depois(); setTimeout(ajustar, 300); setTimeout(ajustar, 700); setTimeout(ajustar, 1300); };   // o teclado abre a meio: repete-se depois da animação
     if (vv) { vv.addEventListener('resize', ajustar); vv.addEventListener('scroll', ajustar); }
     window.addEventListener('resize', depois);
     document.addEventListener('focusin', aoFoco);
@@ -730,6 +733,14 @@
     var ehTexto = a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|search|password|email)$/.test(a.type)); if (!ehTexto) return;
     var visTopo = vv ? vv.offsetTop : 0, visFundo = (vv ? vv.offsetTop + vv.height : window.innerHeight);
     var raiz = document.documentElement, dentro = a.closest ? a.closest('.mv-folha-c') : null, r = a.getBoundingClientRect();
+    var dlg = a.closest ? a.closest('.mv-folha') : null;
+    if (dlg) {   // a folha nunca fica por baixo do teclado: mede-se onde ela está e sobe-se o que falta (não depende de --mv-tecl)
+      dlg.style.translate = ''; dlg.style.maxHeight = '';
+      var altVis = visFundo - visTopo; if (altVis > 0) dlg.style.maxHeight = Math.floor(altVis - 8) + 'px';
+      var db = dlg.getBoundingClientRect().bottom, falta = Math.round(db - visFundo);
+      if (falta > 2) dlg.style.translate = '0 ' + (-falta) + 'px';
+      r = a.getBoundingClientRect();
+    }
     if (dentro) {   // numa folha: rola o corpo da folha, não a página
       var cr = dentro.getBoundingClientRect(), t = Math.max(cr.top, visTopo) + 8, f = Math.min(cr.bottom, visFundo) - 8;
       if (r.top < t) dentro.scrollTop += r.top - t;
