@@ -310,6 +310,8 @@ h1, h2, p { margin: 0; }
 .mv-btn:disabled { opacity: var(--mv-op-ocupado); cursor: default; }
 .mv-btn.ghost { border-color: transparent; background: none; color: var(--navy); }
 .mv-btn.compacto { min-height: var(--mv-alvo); }
+/* uma folha com um campo de texto fica colada ao topo do que se vê, por cima do teclado (app.js define top e max-height) */
+.mv-folha.mv-folha-topo { bottom: auto; border-radius: var(--r-folha); }
 /* teclado aberto: a caixa de texto cabe no que se vê (app.js mede --mv-campo-max) e o texto segue o cursor por dentro dela */
 html.mv-teclado .mv-campo { max-height: var(--mv-campo-max, none); min-height: min(var(--mv-campo-h), var(--mv-campo-max, 100dvh)); }
 html.mv-teclado .mv-campo.curto { min-height: min(var(--mv-campo-h-p), var(--mv-campo-max, 100dvh)); }
