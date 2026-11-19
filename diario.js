@@ -64,7 +64,7 @@
   function seteDias(hoje) { var l = []; for (var k = 6; k >= 0; k--) l.push(somarDias(hoje, -k)); return l; }
 
   // ── Cache por conta (privacidade no aparelho) ──
-  function cacheVazia(contaId) { return { contaId: String(contaId || ''), hoje: null, obras: {}, ids: {}, versoes: {}, versoesMinhas: {}, reler: {}, hist: [], locs: {}, registos: {}, dias: {}, painel: {}, tf: {}, bc: {}, tfUlt: {}, lidoEm: '' }; }   // (o Pessoal vive à parte, em doeMovel.pessoal: pessoal.js); painel: as leituras do Hoje da fatia 2a (hoje.js); tf, bc: as listas dos trabalhos e dos bloqueios do cliente (trabalhos.js); tfUlt: a última Localização de um trabalho, por obra (trabalhos-ecra.js)
+  function cacheVazia(contaId) { return { contaId: String(contaId || ''), hoje: null, obras: {}, ids: {}, versoes: {}, versoesMinhas: {}, reler: {}, hist: [], locs: {}, registos: {}, dias: {}, painel: {}, tf: {}, bc: {}, tfUlt: {}, abertas: null, lidoEm: '' }; }   // (o Pessoal vive à parte, em doeMovel.pessoal: pessoal.js); painel: as leituras do Hoje da fatia 2a (hoje.js); tf, bc: as listas dos trabalhos e dos bloqueios do cliente (trabalhos.js); tfUlt: a última Localização de um trabalho, por obra (trabalhos-ecra.js); abertas: as obras com o diário aberto ({ lista, dia }; null = o servidor ainda não o diz: todas abertas, como antes)
   /** A cache só serve a conta que a escreveu: outra conta recebe uma vazia (e a antiga deita-se fora). */
   function cacheDaConta(cache, contaId) {
     if (!contaId) return cacheVazia('');
@@ -99,8 +99,27 @@
   function guardarHoje(cache, data, agora) {
     cache.hoje = { dia: data.dia, fechaEm: data.fechaEm, obraSugerida: data.obraSugerida || null, meus: Array.isArray(data.meus) ? copia(data.meus) : [], contrato: Number.isInteger(data.contrato) ? data.contrato : 0 };
     cache.lidoEm = (agora || new Date()).toISOString();
+    return guardarAbertas(cache, data);
+  }
+  /** O diário aberto ou fechado por obra (18 nov 2026, decisão do Pedro): GET /movel/diario/hoje diz `obrasAbertas` (os ids das
+      obras da conta com o diário aberto) só com o SQL de 18 nov no servidor. Sem a chave (servidor de antes), null: todas
+      contam como abertas, como antes. Com o Hoje da fatia 2a, a página lê esta rota só para isto (não mexe no `hoje`). */
+  function guardarAbertas(cache, data) {
+    var fe = data && data.obrasFechadas && typeof data.obrasFechadas === 'object' ? data.obrasFechadas : {}, fechados = {};
+    Object.keys(fe).forEach(function (k) { fechados[k] = RE_DIA.test(String(fe[k] || '')) ? fe[k] : null; });
+    cache.abertas = data && Array.isArray(data.obrasAbertas) ? { lista: data.obrasAbertas.filter(function (x) { return typeof x === 'string'; }), fechados: fechados, dia: String(data.dia || '') } : null;
     return cache;
   }
+  /** O dia do fecho de uma obra fechada ('AAAA-MM-DD': até ele, inclusive, um registo novo ainda entra; null: nunca aberta,
+      nenhum entra). undefined = o servidor não o disse. */
+  function fechadoDia(cache, obraId) { var a = cache && cache.abertas; if (!a || !a.fechados || !(String(obraId) in a.fechados)) return undefined; return a.fechados[String(obraId)]; }
+  /** A regra do servidor (doe_diario_aceita_novo): um registo NOVO do dia `dia` entra com o diário aberto, ou fechado até ao dia
+      do fecho, esse incluído. `aberto` false e `fd` (o dia do fecho, null ou undefined) dizem o que o servidor mandou. */
+  function aceitaNovo(aberto, fd, dia) { return aberto !== false || (typeof fd === 'string' && RE_DIA.test(fd) && String(dia) <= fd); }
+  /** A obra tem o diário aberto? Sem o servidor o dizer (cache.abertas null), sim. */
+  function obraAberta(cache, obraId) { var a = cache && cache.abertas; return !(a && Array.isArray(a.lista)) || a.lista.indexOf(String(obraId)) >= 0; }
+  /** O servidor diz que nenhuma das obras `ids` tem o diário aberto (com a lista conhecida e pelo menos uma obra). */
+  function nenhumaAberta(cache, ids) { var a = cache && cache.abertas; return !!(a && Array.isArray(a.lista)) && (ids || []).length > 0 && !(ids || []).some(function (id) { return a.lista.indexOf(String(id)) >= 0; }); }
   /** O meu registo de um dia passado (GET /movel/diario?obra=&dia=, 13 nov 2026): entra na cópia do registo (com o `pode` e o
       `corrigeAte`), sem mexer no que a obra diz de hoje. Sem registo meu nesse dia (anulado, ou nunca houve), a cópia sai. */
   function guardarDiaLido(cache, obraId, data) {
@@ -376,6 +395,8 @@
     switch (c) {
       // 13 nov 2026 (liberdade de corrigir): a janela é de 7 dias depois do dia do registo; `fechaEm` = quando fechou
       case 'DIA_FECHADO': return { accao: 'parar', fechado: true, texto: d.motivo === 'foto' ? 'Esta foto já não entra: passaram mais de 7 dias desde que a juntaste.' : (d.motivo === 'prazo' ? 'Este diário já não entra: passaram mais de 7 dias.' : 'Este diário já não se corrige: quem o fez corrige e anula até 7 dias depois do dia. Depois, só o DO ou o GP. Ficou no telemóvel.') };
+      // 18 nov 2026: o diário desta obra está fechado (só um registo NOVO se recusa). Fica parado com «Tentar de novo».
+      case 'DIARIO_FECHADO': return { accao: 'parar', diarioFechado: true, texto: 'O diário desta obra está fechado: ficou no telemóvel. Quando o abrirem, toca em «Tentar de novo».' };
       case 'NAO_EXISTE': return { accao: 'parar', texto: 'Este diário já não existe no servidor.' };
       case 'REGISTO_ANULADO': return { accao: 'parar', texto: m || 'Este diário foi anulado.' };
       case 'FOTO_ARQUIVADA': return { accao: 'reler-fotos', texto: 'Uma das fotos já está nos documentos da obra: só o DO ou o GP a retiram.' };   // revisão (C2): a correcção relê e segue com ela
@@ -641,7 +662,7 @@
     novoIdRegisto: novoIdRegisto, novoPedidoId: novoPedidoId,
     somarDias: somarDias, diaDaSemana: diaDaSemana, fimDeSemana: fimDeSemana, difDias: difDias, textoDiaMes: textoDiaMes, textoDiaCurto: textoDiaCurto, textoDiaLongo: textoDiaLongo, inicialDia: inicialDia, diaCurto: diaCurto, quandoFoi: quandoFoi,
     diaAtual: diaAtual, diaAberto: diaAberto, seteDias: seteDias, horaDe: horaDe,
-    cacheVazia: cacheVazia, cacheDaConta: cacheDaConta, chaveDia: chaveDia, idRegistoDe: idRegistoDe, registarHistorico: registarHistorico, guardarHoje: guardarHoje, guardarObra: guardarObra,
+    cacheVazia: cacheVazia, cacheDaConta: cacheDaConta, chaveDia: chaveDia, idRegistoDe: idRegistoDe, registarHistorico: registarHistorico, guardarHoje: guardarHoje, guardarAbertas: guardarAbertas, obraAberta: obraAberta, fechadoDia: fechadoDia, aceitaNovo: aceitaNovo, nenhumaAberta: nenhumaAberta, guardarObra: guardarObra,
     guardarDiaLido: guardarDiaLido, aoAnulado: aoAnulado, podeNoRegisto: podeNoRegisto, anular: anular,
     itemComandoDiario: itemComandoDiario, corpoComandoDiario: corpoComandoDiario, processarComandoDiario: processarComandoDiario, resumoComandoDiario: resumoComandoDiario, COMANDO_PROVA_ANTERIOR: COMANDO_PROVA_ANTERIOR,
     normNome: normNome, chaveEquipa: chaveEquipa, totalHomens: totalHomens, doeESub: doeESub, txtHomens: txtHomens, equipasParaEnviar: equipasParaEnviar, assinaturaEquipas: assinaturaEquipas,

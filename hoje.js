@@ -76,15 +76,16 @@
   function ultimoDia(s) { for (var k = s.length - 2; k >= 0; k--) if (s[k].tem) return { dia: s[k].dia, total: s[k].total, doe: s[k].doe }; return null; }
 
   /** O modelo de uma obra. ctx: { hoje, feriados, meu: {doe, sub} | null (o meu de hoje aceite, neste telemóvel),
-      pend: homens do meu de hoje que está na fila (0 = nenhum) }. */
+      pend: homens do meu de hoje que está na fila (0 = nenhum), fechado: o diário da obra está fechado (18 nov 2026: nunca
+      «por fazer»; a obra continua no Hoje pelos trabalhos e pelos bloqueios) }. */
   function modeloObra(o, ctx) {
     var s = serie(o && o.diario && o.diario.serie7, ctx.hoje, ctx.feriados), h = s[6];
     if (!h.tem && ctx.meu) Object.assign(h, { tem: true, doe: num(ctx.meu.doe), sub: num(ctx.meu.sub), total: num(ctx.meu.doe) + num(ctx.meu.sub), registos: 1, conhecido: true, meu: { totalHomens: num(ctx.meu.doe) + num(ctx.meu.sub) } });   // o meu entrou depois da leitura: é dele
     var pend = h.tem ? 0 : num(ctx.pend);
     if (pend) h.pend = pend;
-    var util = D.diaUtil(ctx.hoje, ctx.feriados);
+    var util = D.diaUtil(ctx.hoje, ctx.feriados), fech = !!ctx.fechado || !!(o && o.diario && o.diario.aberto === false);   // 18 nov 2026: diario.aberto (GET /movel/hoje); ausente = aberto
     return { id: String(o.id), codigo: String(o.codigo || ''), nome: String(o.nome || ''), serie: s, util: util, tem: h.tem, homensHoje: h.tem ? h.total : null,
-      pend: pend, porFazer: util && !h.tem && !pend, trabalhos: o.trabalhos || null, cliente: o.cliente || null, material: o.material || null,
+      pend: pend, fechado: fech, porFazer: !fech && util && !h.tem && !pend, trabalhos: o.trabalhos || null, cliente: o.cliente || null, material: o.material || null,
       problema: o.problema === 'semResposta' || o.problema === 'atrasados' ? o.problema : null };
   }
   /** Uma palavra com cor: só o mais grave. rank 0 pede atenção primeiro (é a ordem da página Obras). */
@@ -95,7 +96,7 @@
     if (m.porFazer) return { t: 'diário por fazer', cls: 'ama-t', rank: 1 };
     if (m.pend) return { t: 'diário por enviar', cls: 'ama-t', rank: 1 };
     if (c && num(c.ativos)) return { t: pl(num(c.ativos), 'bloqueio do cliente', 'bloqueios do cliente'), cls: 'ama-t', rank: 2 };
-    if (!t && !c) return m.tem ? { t: 'diário feito', cls: 'pos-t', rank: 3 } : { t: 'sem diário hoje', cls: 'neu-t', rank: 3 };   // sem as outras funcionalidades não se diz «em dia»
+    if (!t && !c) return m.tem ? { t: 'diário feito', cls: 'pos-t', rank: 3 } : { t: m.fechado ? 'diário fechado' : 'sem diário hoje', cls: 'neu-t', rank: 3 };   // sem as outras funcionalidades não se diz «em dia»
     return { t: 'em dia', cls: 'pos-t', rank: 3 };
   }
   /** Pelo que pede atenção (estável: dentro do mesmo grau, a ordem do servidor, por código). */
@@ -110,8 +111,9 @@
     if (h.tem) { r.n = String(h.total); r.leg.push({ t: 'homens hoje' }); return r; }
     if (m.pend) { r.n = String(m.pend); r.leg.push({ t: 'hoje' }, { t: 'por enviar', cls: 'ama-t' }); return r; }
     if (ult) { r.n = String(ult.total); r.leg.push({ t: D.difDias(ult.dia, h.dia) === 1 ? 'ontem' : D.textoDiaMes(ult.dia) }); }
-    else { r.n = '–'; r.nada = true; if (!m.util) r.leg.push({ t: h.feriado ? 'feriado' : 'sem registos' }); }
+    else { r.n = '–'; r.nada = true; if (!m.util && !m.fechado) r.leg.push({ t: h.feriado ? 'feriado' : 'sem registos' }); }
     if (m.porFazer) r.leg.push({ t: 'hoje por fazer', cls: 'ama-t' });
+    if (m.fechado) r.leg.push({ t: 'diário fechado' });   // 18 nov 2026: sem «por fazer» nem cor
     return r;
   }
   /** Os 7 dias de várias obras somados (os dias que alguma conhece). */
@@ -125,7 +127,10 @@
     });
   }
   /** Diário de todas as obras (Geral): os homens de hoje dos diários já feitos e quantos faltam («6 hoje · 2 por fazer»). */
-  function blocoDiarioGeral(ms, hoje, feriados) {
+  function blocoDiarioGeral(todas, hoje, feriados) {
+    // 18 nov 2026: só as obras com o diário aberto contam («em todas», «por fazer», a série); todas fechadas: «diário fechado».
+    var ms = (todas || []).filter(function (m) { return !m.fechado; });
+    if (!ms.length && (todas || []).length) return { n: '–', nada: true, leg: [{ t: 'diário fechado' }], est: '', com: 0, porFazer: 0, serie: serieSomada(todas) };
     var com = ms.filter(function (m) { return m.tem; }), pf = porFazer(ms), pe = ms.filter(function (m) { return m.pend; }), util = D.diaUtil(hoje, feriados);
     var r = { n: com.length ? String(com.reduce(function (a, m) { return a + m.homensHoje; }, 0)) : '–', nada: !com.length, leg: [{ t: 'hoje' }], est: pf.length ? 'ama' : '', com: com.length, porFazer: pf.length, serie: serieSomada(ms) };
     if (pf.length) r.leg.push({ t: pf.length + ' por fazer', cls: 'ama-t' });

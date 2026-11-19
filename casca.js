@@ -410,7 +410,7 @@
       ops.forEach(function (o) {
         var extra = null;
         if (o[0] === 'ocorrencia' && A.temRascunho()) extra = el('span', 'mv-rasc', 'Rascunho');
-        if (o[0] === 'diario') { var e = estadoDiarioHoje(obraHoje()); if (e.anulando) extra = el('span', 'mv-rasc', 'Anulado, por enviar'); else if (e.rascunho) extra = el('span', 'mv-rasc', 'Rascunho'); else if (e.pend) extra = el('span', 'mv-rasc', 'Por enviar'); else if (e.meu) extra = el('span', 'mv-rasc neu', 'Feito'); }
+        if (o[0] === 'diario') { var e = estadoDiarioHoje(obraHoje()); if (!aceitaNovo(obraHoje(), hojeDia().dia) && !e.meu && !e.pend && !e.rascunho) extra = el('span', 'mv-rasc neu', 'Fechado'); else if (e.anulando) extra = el('span', 'mv-rasc', 'Anulado, por enviar'); else if (e.rascunho) extra = el('span', 'mv-rasc', 'Rascunho'); else if (e.pend) extra = el('span', 'mv-rasc', 'Por enviar'); else if (e.meu) extra = el('span', 'mv-rasc neu', 'Feito'); }
         if ((o[0] === 'tf' && TE.temRascunho()) || (o[0] === 'bc' && BE.temRascunho())) extra = el('span', 'mv-rasc', 'Rascunho');   // fecho da 2a: o «+» continua-o
         var b = linhaOp(o[1], o[2], o[3], extra); b.setAttribute('data-reg', o[0]);
         b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pes-fer') PE.abrirPedir('FERIAS', { daFolha: true }); else if (o[0] === 'pes-falta') PE.abrirPedir('', { daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
@@ -556,7 +556,7 @@
     var e = dia ? estadoDiarioHoje(ob) : {}, util = D.diaUtil(hd.dia, feriados()), ult = dia ? D.ultimoComRegisto(ch, ob, hd.dia) : null;
     var acao = null;
     if (p.erros) acao = { ic: 'alerta', t: p.erros + (p.erros === 1 ? ' envio com erro' : ' envios com erro'), s: 'Não chegaram: vê e tenta de novo', b: 'Ver', bl: 'Ver os envios', fn: function () { abrir('v-fila'); }, erro: true };
-    else if (dia && !e.meu && !e.pend && !e.anulando && util) {
+    else if (dia && !e.meu && !e.pend && !e.anulando && util && aberta(ob)) {
       var su = ult ? D.doeESub(ult.equipas) : null;
       acao = { ic: 'diario', t: e.rascunho ? 'Diário por acabar' : 'Diário por fazer', s: ult ? (D.difDias(ult.dia, hd.dia) === 1 ? 'Ontem' : 'A ' + D.textoDiaMes(ult.dia)) + ': ' + D.txtHomens(su.doe + su.sub) + ' · ' + su.doe + ' DOE' : 'Ainda sem registos teus nesta obra', b: e.rascunho ? 'Continuar' : 'Fazer', bl: 'Fazer o diário', fn: function () { abrirDiario(ob); } };
     }
@@ -574,17 +574,19 @@
       else { var uS = sr.s.slice(0, 6).filter(function (x) { return x.tem; }).pop(); if (uS) { nD = String(uS.total); legD = D.difDias(uS.dia, hd.dia) === 1 ? 'ontem' : D.textoDiaMes(uS.dia); } else if (ult) { nD = String(D.totalHomens(ult.equipas)); legD = D.difDias(ult.dia, hd.dia) === 1 ? 'ontem' : D.textoDiaMes(ult.dia); } else { nD = '–'; nada = true; legD = util ? '' : (hojeS.feriado ? 'feriado' : 'sem registos'); } }
       var b = bt('mv-mos larga'); b.id = 'b-diario7'; b.style.setProperty('--i', '1');
       var top = el('span', 'mv-mos-t'); top.appendChild(ic('diario')); top.appendChild(el('span', 'mv-mos-l', 'Diário'));
-      if (!e.meu && util) { var pt = el('i', 'mv-ponto ama'); pt.setAttribute('aria-hidden', 'true'); top.appendChild(pt); }
+      var fech = !aberta(ob);
+      if (!e.meu && util && !fech) { var pt = el('i', 'mv-ponto ama'); pt.setAttribute('aria-hidden', 'true'); top.appendChild(pt); }
       b.appendChild(top);
       b.appendChild(el('span', 'mv-mos-n' + (nada ? ' nada' : ''), nD));
       var leg = el('span', 'mv-mos-c'); if (legD) leg.appendChild(document.createTextNode(legD));
-      var est = e.anulando ? 'anulado, por enviar' : (e.meu ? '' : (e.pend ? 'por enviar' : (util ? 'hoje por fazer' : '')));
-      if (est) { if (legD) leg.appendChild(document.createTextNode(' · ')); leg.appendChild(el('span', 'ama-t', est)); }
+      var est = e.anulando ? 'anulado, por enviar' : (e.meu ? '' : (e.pend ? 'por enviar' : (fech ? 'diário fechado' : (util ? 'hoje por fazer' : ''))));
+      if (est) { if (legD) leg.appendChild(document.createTextNode(' · ')); leg.appendChild(est === 'diário fechado' ? document.createTextNode(est) : el('span', 'ama-t', est)); }
       b.appendChild(leg);
       var zv = el('span', 'mv-mos-v'); zv.appendChild(graf7(sr.s, false)); b.appendChild(zv);
       b.setAttribute('aria-label', 'Diário: ' + nD + ' ' + (legD || 'homens') + (est ? ', ' + est : '') + '. Ver os 7 dias');
       b.addEventListener('click', abrirDiario7);
       g.appendChild(b); v.appendChild(g);
+      var sda = semDiarioAbertoEl(obras().map(function (o) { return o.id; })); if (sda) v.appendChild(sda);
     }
     if (!c.externa) v.appendChild(el('p', 'mv-embreve', 'Em breve: trabalhos em falta, material e bloqueios do cliente.'));   // a conta externa nunca os terá
   }
@@ -598,11 +600,63 @@
   /** A única das minhas obras (quem tem várias permitidas e só uma sua abre nela). */
   function minhaUnica() { if (!H || obras().length < 2) return ''; var l = obrasTodas(); return l && l.length === 1 && obraDe(l[0].id) ? l[0].id : ''; }
   function encarregado() { var s = sessao(); return !!(s && s.soTelemovel); }
+  // ── Diário aberto ou fechado por obra (18 nov 2026, decisão do Pedro) ──
+  // O servidor diz quais das obras têm o diário aberto: no Hoje da 2a, cada obra lida traz diario.aberto (GET /movel/hoje); no
+  // da fatia 1, GET /movel/diario/hoje traz obrasAbertas (diario.js obraAberta). Sem o dizer, todas abertas. Fechada, a obra não
+  // pede o diário (nem «por fazer», nem a faixa) e um registo NOVO não se abre; o que já está registado lê-se e corrige-se.
+  // Abrir e fechar faz-se no computador, na ficha da obra (o GP, o Diretor de Obra ou o Técnico): o telemóvel só lê.
+  function aberta(id) {
+    if (temHojeMv()) { var x = H.obraNaCopia(cache(), id), d = x && x.o && x.o.diario; return !(d && d.aberto === false); }   // uma obra que a cópia não tem: aberta (o servidor decide ao gravar)
+    return D.obraAberta(cache(), id);
+  }
+  /** Um registo NOVO deste dia entra nesta obra? A regra do servidor (D.aceitaNovo): aberta, ou fechada até ao dia do fecho,
+      esse incluído (decisão do Pedro, 18 nov 2026). Só com o que o servidor disse; sem o dizer, entra (o servidor decide). */
+  function aceitaNovo(id, dia) {
+    if (aberta(id)) return true;
+    var fd;
+    if (temHojeMv()) { var x = H.obraNaCopia(cache(), id); fd = x && x.o && x.o.diario ? x.o.diario.fechadoDia : undefined; }
+    else fd = D.fechadoDia(cache(), id);
+    return D.aceitaNovo(false, fd, dia);
+  }
+  function quemAbreTxt() { return encarregado() ? 'Quando houver gente em obra, o GP ou o Diretor de Obra abrem-no.' : 'Quem gere a obra (o GP, o Diretor de Obra ou o Técnico) abre-o no computador, na ficha da obra, em «Diário de obra».'; }
+  /** A frase calma quando o diário está fechado em todas as obras `ids` à vista: «Nenhuma obra tem o diário aberto.» (ou, numa
+      obra só de quem tem várias, «O diário desta obra está fechado.»), com quem o abre. */
+  function semDiarioAbertoEl(ids) {
+    var l = ids || [];
+    if (!tem('diario') || !l.length || l.some(function (id) { return aberta(id); })) return null;
+    if (!temHojeMv() && !D.nenhumaAberta(cache(), l)) return null;   // na fatia 1, só com a lista do servidor (sem ela, não se afirma)
+    var p = el('p', 'mv-nada'); p.id = 'h-diario-fechado';
+    p.appendChild(el('b', null, l.length === 1 && obras().length > 1 ? 'O diário desta obra está fechado.' : 'Nenhuma obra tem o diário aberto.'));
+    p.appendChild(document.createTextNode(' ' + quemAbreTxt()));
+    return p;
+  }
+  /** Tenho já um registo (aceite, na fila ou em rascunho) desta obra neste dia? Então corrige-se, mesmo com o diário fechado. */
+  function temRegistoMeu(ob, dia) {
+    var ch = cache(), k = D.chaveDia(ob, dia);
+    return !!ch.registos[k] || (!!ch.ids[k] && ch.versoes[ch.ids[k]] != null) || (ch.hist || []).some(function (x) { return x.obraId === ob && x.dia === dia && !x.soEquipas; })
+      || minhaFila().some(function (q) { return q.tipo === 'diario' && q.obraId === ob && q.dia === dia; }) || !!c.rascunhos[idRascunho(ob, dia)];
+  }
+  /** O diário desta obra está fechado: diz-o e, havendo, oferece as minhas obras com o diário aberto. */
+  function folhaDiarioFechado(ob) {
+    var o = obraDe(ob), outras = obras().filter(function (x) { return x.id !== ob && aberta(x.id); });
+    folha({ titulo: 'Diário de obra', sub: o ? (o.codigo ? o.codigo + ' · ' : '') + o.nome : '', corpo: function (cc) {
+      var t = el('p', 'mv-folha-txt'); t.id = 'fx-diario-fechado';
+      t.appendChild(el('b', null, outras.length ? 'O diário desta obra está fechado.' : 'Nenhuma obra tem o diário aberto.'));
+      t.appendChild(document.createTextNode(' ' + quemAbreTxt())); cc.appendChild(t);
+      if (outras.length) cc.appendChild(el('p', 'mv-lh', 'Com o diário aberto'));
+      outras.forEach(function (x) {
+        var b = bt('mv-lo mv-lo-ir'); b.setAttribute('data-obra', x.id);
+        junta(b, el('code', null, x.codigo || ''), el('span', 'mv-lo-n', x.nome), ic('chev'));
+        b.addEventListener('click', function () { A.fecharFolhas(true); abrirDiario(x.id, false, true); });
+        cc.appendChild(b);
+      });
+    } });
+  }
   /** O que este telemóvel sabe do meu diário de hoje nessa obra (aceite ou na fila), para o modelo da obra. */
   function ctxObra(id) {
     var hd = hojeDia(), e = estadoDiarioHoje(id), ch = cache(), meu = null;
     if (e.meu) { var hh = (ch.hist || []).filter(function (x) { return x.obraId === id && x.dia === hd.dia && !x.soEquipas; })[0], ds = hh ? D.doeESub(hh.equipas) : { doe: e.meu.total, sub: 0 }; meu = { doe: ds.doe, sub: ds.sub }; }
-    return { hoje: hd.dia, feriados: feriados(), meu: meu, pend: e.pend ? D.totalHomens(e.pend.equipas) : 0 };
+    return { hoje: hd.dia, feriados: feriados(), meu: meu, pend: e.pend ? D.totalHomens(e.pend.equipas) : 0, fechado: !aberta(id) };
   }
   function modeloDe(o) { return H.modeloObra(o, ctxObra(o.id)); }
   function desenharHojeMv(v, modo) {
@@ -637,6 +691,7 @@
     var p0 = limpar($('hx-p0')), p1 = limpar($('hx-p1'));
     var fa = faixaAcaoMv(ms, true); if (fa) p0.appendChild(fa);
     p0.appendChild(mosaicoMv({ trabalhos: soma.trabalhos || null, cliente: soma.cliente || null }, true, ms));
+    var sda = semDiarioAbertoEl(ms.map(function (x) { return x.id; })); if (sda) p0.appendChild(sda);
     var gr = el('div', 'mv-grupo hx-grupo-d'), h = el('div', 'hx-sec-h'); h.appendChild(el('h2', null, 'Por atenção')); h.appendChild(el('span', null, 'homens hoje')); gr.appendChild(h);
     ord.forEach(function (m) { gr.appendChild(linhaObraD(m)); });
     p1.appendChild(gr);
@@ -757,6 +812,7 @@
     if (!x) { v.appendChild(c.lendo || (online() && A.sessaoValida()) ? esqueletoMv() : el('p', 'mv-nada', 'Ainda não tenho o Hoje desta obra neste telemóvel: aparece quando houver rede.')); return; }
     var m = modeloDe(x.o), fa = faixaAcaoMv([m], false); if (fa) v.appendChild(fa);
     v.appendChild(mosaicoMv(m, false));
+    var sda = semDiarioAbertoEl([m.id]); if (sda) v.appendChild(sda);
     var ba = v.querySelector('[data-k="acao"]'), bd = v.querySelector('[data-k="mos-diario"]');   // uma página só: os ids de sempre
     if (ba) ba.id = 'b-acao'; if (bd) bd.id = 'b-diario7';
   }
@@ -907,7 +963,7 @@
   function folhaObras(ctx) {
     var atual = ctx === 'hoje' ? obraHoje() : (c.form && c.form.obraId);
     folha({ titulo: ctx === 'hoje' ? 'Obra' : 'Escolher a obra', alta: obras().length > 6, corpo: function (cc) {
-      obras().forEach(function (o) {
+      obras().filter(function (o) { return ctx === 'hoje' || o.id === atual || aberta(o.id); }).forEach(function (o) {   // 18 nov 2026: no diário, só as obras com ele aberto
         var b = bt('mv-lo'); b.setAttribute('aria-pressed', o.id === atual ? 'true' : 'false');
         junta(b, el('code', null, o.codigo || ''), el('span', 'mv-lo-n', o.nome), ic('ok'));
         b.addEventListener('click', function () {
@@ -994,6 +1050,11 @@
     var lido = outroDia ? await lerDiaAgora(ob, diaPedido) : null;
     var ch = cache(), hd = outroDia ? { dia: diaPedido } : hojeDia(), k = D.chaveDia(ob, hd.dia), o = ch.obras[ob];
     var rasc = semRascunho ? null : c.rascunhos[idRascunho(ob, hd.dia)];
+    // 18 nov 2026: com o diário fechado não se abre um registo NOVO (a regra do servidor: aceitaNovo). Só com rede e com o que
+    // o servidor disse; sem rede a página não bloqueia pela cópia: deixa registar e pôr na fila, e o servidor decide. O que
+    // já existe (aceite, lido agora do servidor, na fila ou em rascunho) corrige-se sempre.
+    var jaTemMeu = temRegistoMeu(ob, hd.dia) || (outroDia ? !!(lido && lido.meu) : !!(o && o.dia === hd.dia && o.meu));
+    if (online() && A.sessaoValida() && !jaTemMeu && !aceitaNovo(ob, hd.dia)) { folhaDiarioFechado(ob); return; }
     var anul = anularPorEnviar(ob, hd.dia);
     if (anul) { folhaAnulando(anul); return; }   // revisão (C3): por cima de um anular por enviar não se abre um registo novo
     // revisão (P5): conta a por enviar e a parada por corrigir (a pessoa muda e guarda); nunca a parada por dia fechado ou
