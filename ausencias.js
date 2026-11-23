@@ -82,8 +82,47 @@
     f.passo = c.ferias ? 1 : 2;   // ao corrigir uma falta não se escolhe outra vez o tipo
     return f;
   }
-  /** «Mudar» um comando que não entrou (ou que ainda não saiu): o formulário com o que a pessoa tinha. */
+  // Os campos de um pedido (a forma do comando) e o nome com que se dizem quando mudaram entretanto.
+  var ROT_CAMPO = { inicio: 'o início', fim: 'o fim', horasCompleto: 'as horas', horaInicio: 'as horas', horaFim: 'as horas', nota: 'a nota', motivo: 'o motivo',
+    parentesco: 'o parentesco', especificar: 'o «especificar»', outOffice: 'o destino', anexo: 'o comprovativo', tipo: 'o tipo' };
+  function canon(v) { return v === undefined ? '' : JSON.stringify(v); }
+  /** As chaves em que dois conjuntos de campos diferem (sem o excessoVisto, que é confirmação e não pedido). */
+  function chavesDiferentes(a, b) {
+    var ks = {}; Object.keys(a || {}).concat(Object.keys(b || {})).forEach(function (k) { if (k !== 'excessoVisto') ks[k] = true; });
+    return Object.keys(ks).filter(function (k) { return canon((a || {})[k]) !== canon((b || {})[k]); });
+  }
+  /** Os campos do pedido como a pessoa o leu (a BASE de um corrigir): o que se compara no «Mudar». */
+  function baseDe(p) { return p ? camposDe(formDoRegisto(p)) : null; }
+  /** Põe no formulário os campos de um comando (só as chaves dadas). */
+  function aplicarAoForm(f, c, ks) {
+    ks.forEach(function (k) {
+      var v = c[k];
+      if (k === 'inicio' || k === 'fim' || k === 'horaInicio' || k === 'horaFim' || k === 'nota' || k === 'motivo' || k === 'parentesco' || k === 'especificar') f[k] = v == null ? '' : v;
+      else if (k === 'horasCompleto') f.horasCompleto = v !== false;
+      else if (k === 'anexo') f.anexo = !!v;
+      else if (k === 'outOffice') f.oo = v ? { modo: v.modo || 'OBRA', obras: lista(v.obras).slice(), visitas: lista(v.visitas).map(function (x) { return { clienteId: x.clienteId, contactoId: x.contactoId }; }) } : ooVazio();
+    });
+    return f;
+  }
+  /** O que mudou entretanto, dito pelos nomes: «as datas, a nota». */
+  function textoMudou(ks) {
+    var l = [];
+    ks.forEach(function (k) { var t = (k === 'inicio' || k === 'fim') ? 'as datas' : (ROT_CAMPO[k] || k); if (l.indexOf(t) < 0) l.push(t); });
+    return l.join(', ');
+  }
+  /** «Mudar» um comando que não entrou (ou que ainda não saiu). Num corrigir com o pedido de AGORA (a cópia, que o 409
+      MUDOU já acertou com `details.registo`): parte dele e põe por cima só os campos que a pessoa mudou em relação ao que
+      tinha lido (`q.base`); `servidorMudou` diz o que mudou entretanto (revisão da F3, C2, aplicada também à F2: antes o
+      formulário voltava com os valores velhos e o reenvio desfazia a mudança do computador). Sem `base` (um item antigo) ou
+      num pedir: o que a pessoa tinha. */
   function formDoItem(q, registo) {
+    if (q.accao === 'corrigir' && registo && q.base) {
+      var g = formDoRegisto(registo), meus = chavesDiferentes(q.base, q.campos);
+      aplicarAoForm(g, q.campos || {}, meus);
+      g.servidorMudou = chavesDiferentes(q.base, baseDe(registo));
+      g.deItem = q.id;
+      return g;
+    }
     var c = q.campos || {}, f = formNovo(c.tipo || (registo && registo.tipo) || '', c.inicio);
     f.accao = q.accao === 'corrigir' ? 'corrigir' : 'pedir'; f.id = q.registoId; f.versao = registo ? (registo.versao || '') : (q.versao || '');
     f.inicio = c.inicio || ''; f.fim = c.fim || c.inicio || ''; f.horasCompleto = c.horasCompleto !== false; f.horaInicio = c.horaInicio || ''; f.horaFim = c.horaFim || '';
@@ -198,7 +237,7 @@
     var registoId = accao === 'pedir' ? (o.id || (f && f.id) || novoIdAus(o.novoId)) : String((r && r.id) || (f && f.id) || '');
     return { id: 'q-' + uuid(o.novoId), tipo: 'aus', estado: 'a-enviar', contaId: String(o.contaId || ''), contaNome: String(o.contaNome || ''),
       registoId: registoId, accao: accao, campos: campos, pedidoId: novoPedidoId(o.novoId), versao: accao === 'pedir' ? '' : String((r && r.versao) || (f && f.versao) || ''),
-      tipoAus: (r && r.tipo) || campos.tipo || '', resumo: resumoCurto(accao === 'cancelar' ? r : campos),
+      tipoAus: (r && r.tipo) || campos.tipo || '', resumo: resumoCurto(accao === 'cancelar' ? r : campos), base: accao === 'corrigir' && r ? baseDe(r) : null,
       criadoEm: agora.toISOString(), adiadoAte: o.adiarMs ? new Date(agora.getTime() + o.adiarMs).toISOString() : '', tentou: false,
       resposta: null, registo: null, erro: '', code: '', details: null, avisos: [], fotos: [] };
   }
@@ -406,6 +445,7 @@
     q.estado = 'a-enviar'; q.erro = ''; q.code = ''; q.details = null; q.mudar = false; q.confirmar = false; q.tentou = false; q.resposta = null; q.registo = null;
     q.pedidoId = novoPedidoId(o.novoId);
     if (o.campos) { q.campos = o.campos; q.resumo = resumoCurto(q.campos); }
+    if (o.base !== undefined) q.base = o.base;   // a pessoa viu o pedido de agora: é sobre ele que os campos mudam
     if (o.versao !== undefined) q.versao = String(o.versao || '');
     if (o.excessoVisto) q.campos = Object.assign({}, q.campos, { excessoVisto: copia(o.excessoVisto) });
     q.criadoEm = (o.agora || new Date()).toISOString(); q.adiadoAte = o.adiarMs ? new Date((o.agora || new Date()).getTime() + o.adiarMs).toISOString() : '';
@@ -434,6 +474,6 @@
     chocam: chocam, sobreposicao: sobreposicao, excesso: excesso, livresDepois: livresDepois, foraDoAno: foraDoAno, resumoOO: resumoOO, motivoDe: motivoDe,
     itemComando: itemComando, corpoComando: corpoComando, registoProvisorio: registoProvisorio, aplicarLocal: aplicarLocal, meus: meus,
     comPendentes: comPendentes, porRegisto: porRegisto, aplicarResposta: aplicarResposta, saldoAjustado: saldoAjustado, mensagem: mensagem, textoSobreposicao: textoSobreposicao, processar: processar, reenviar: reenviar,
-    tituloItem: tituloItem, resumoItem: resumoItem, textoAviso: textoAviso, mesmoPedido: mesmoPedido,
+    tituloItem: tituloItem, resumoItem: resumoItem, textoAviso: textoAviso, mesmoPedido: mesmoPedido, baseDe: baseDe, chavesDiferentes: chavesDiferentes, textoMudou: textoMudou,
   };
 }));

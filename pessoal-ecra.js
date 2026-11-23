@@ -6,6 +6,12 @@
    servidor dá a funcionalidade `ausencias` (sem ela, tudo fica só para ler, como na F1): «Pedir férias» (datas e rever),
    «Falta ou ausência» (tipo, dias e detalhe, comprovativo e envio), o «Feito» com o estado do envio e o Desfazer de 5 s,
    «Por enviar» com o motivo do servidor («Mudar» ou «Desistir»), e na folha de cada pedido Corrigir e Cancelar pelo `pode`.
+   Fase 3 (23 nov 2026): REGISTAR, CORRIGIR, ANULAR, MARCAR «PAGA» E DESFAZER «PAGA» as despesas (despesas.js), só quando o
+   servidor dá a funcionalidade `despesas` (sem ela, as despesas só se lêem e o «Despesa» fica «Em breve»): um formulário de
+   um ecrã (data, categoria, valor, imputação a obra ou departamento, fatura em papel, observações), a mesma fila, o mesmo
+   Desfazer e o mesmo «Por enviar»; na folha de cada despesa as acções do `pode`. Corrigir uma despesa que já foi para a folha
+   (Aguarda assinatura ou Paga) pede confirmação antes de enviar (`confirmouFolha`), e o 409 JA_NA_FOLHA leva ao mesmo aviso.
+   Sem fotos de talão (decisão do Pedro): a fatura em papel é só sim/não, como no computador.
    Desenho: o protótipo validado pelo Pedro (docs/prototipos/telemovel-perfis/pessoal.js). A lógica é a de pessoal.js e de
    ausencias.js (puras, testadas em Node); a casca dá o kit (`K`).
    Regras:
@@ -23,16 +29,16 @@
      (TOKEN_REVOGADO), ao Sair e quando entra outra conta, a casca apaga-a com as outras leituras. */
 (function () {
   'use strict';
-  var P = self.DoeMovelPessoal, D = self.DoeMovelDiario, AU = self.DoeMovelAus || null;
+  var P = self.DoeMovelPessoal, D = self.DoeMovelDiario, AU = self.DoeMovelAus || null, DS = self.DoeMovelDesp || null;
   if (!P || !D) return;
   var MS_RELER = 30 * 1000, ESPERAS = self.DOE_MOVEL_ESPERAS_LER || [5000, 30000, 120000], ADIAR = self.DOE_MOVEL_TF_ADIAR || 5000;
-  var VISTAS = ['v-pessoal', 'v-pes-ferias', 'v-pes-faltas', 'v-pes-despesas', 'v-pes-form', 'v-pes-feito'];
+  var VISTAS = ['v-pessoal', 'v-pes-ferias', 'v-pes-faltas', 'v-pes-despesas', 'v-pes-form', 'v-pes-feito', 'v-pes-desp-form'];   // + o formulário das despesas (F3)
   var TIPO_EMPRESA = { ARQUITETO: 'Arquitecto', PROMOTOR: 'Promotor', CONSTRUTOR: 'Construtor', GESTOR_PROJECTO: 'Gestor de Projecto', PROJETISTA: 'Projectista' };
 
   function criar(K) {
     var S = estadoNovo();
     var el = K.el, bt = K.bt, ic = K.ic, limpar = K.limpar, $ = function (id) { return document.getElementById(id); };
-    function estadoNovo() { return { lendo: false, erro: '', fora: false, recusa: '', semLigacao: false, lidoMs: 0, falhas: 0, timer: null, filtroFer: 'seguir', vistaFer: 'lista', filtroFt: 'mes', filtroDp: 'reemb', copia: null, soMemoria: false, form: null, formErro: null, feito: null }; }
+    function estadoNovo() { return { lendo: false, erro: '', fora: false, recusa: '', semLigacao: false, lidoMs: 0, falhas: 0, timer: null, filtroFer: 'seguir', vistaFer: 'lista', filtroFt: 'mes', filtroDp: 'reemb', copia: null, soMemoria: false, form: null, formErro: null, feito: null, dform: null, dformErro: null }; }
     function feriados() { return self.DOE_MOVEL_FERIADOS || {}; }
     // ── A cópia da conta: em memória e no localStorage, na chave própria (P1) ──
     function lsLer() { try { return localStorage.getItem(P.LS_PESSOAL); } catch (e) { return null; } }
@@ -56,17 +62,18 @@
       S.copia = { contaId: conta, data: data, lidoEm: lidoEm, cortada: false };   // o ecrã mostra sempre a leitura inteira
       gravarLs(conta, data, lidoEm);
     }
-    /** Um registo devolvido por um comando entra na cópia (com o saldo acertado), sem mudar a hora da leitura. */
-    function atualizarCopia(registo) {
-      var c = copia(); if (!c || !AU) return;
-      AU.aplicarResposta(c.data, registo, feriados());
+    /** Um registo devolvido por um comando entra na cópia (com o saldo ou o «por reembolsar» acertado), sem mudar a hora da
+        leitura. L: a lógica do registo (ausencias.js, por omissão, ou despesas.js). */
+    function atualizarCopia(registo, L) {
+      var c = copia(), Lg = L || AU; if (!c || !Lg) return;
+      Lg.aplicarResposta(c.data, registo, feriados());
       gravarLs(c.contaId, c.data, c.lidoEm);
     }
     function apagarCopia() { S.copia = null; lsApagar(); }
     /** A cópia do servidor, tal e qual (a base dos comandos: a `versao` que a pessoa viu). */
     function dados() { var c = copia(); return c ? c.data : null; }
     /** O que se mostra: a cópia com os comandos por enviar por cima (um pedido por enviar vê-se logo). */
-    function dadosVista() { var d = dados(); return AU && d ? AU.comPendentes(d, K.fila(), K.contaId(), feriados()) : d; }
+    function dadosVista() { var d = dados(); if (AU && d) d = AU.comPendentes(d, K.fila(), K.contaId(), feriados()); if (DS && d) d = DS.comPendentes(d, K.fila(), K.contaId()); return d; }
     function naVista() { return VISTAS.indexOf(K.vista()) >= 0; }
 
     // ── Quem tem Pessoal (o servidor decide; a casca junta o quemVe()) ──
@@ -77,6 +84,9 @@
     /** F2: o servidor recebe os comandos das ausências desta conta (`ausencias`). Sem ela, o Pessoal só lê. */
     function ausDisponivel() { return !!AU && AU.disponivel(K.funcsPessoal()); }
     function podeEscrever() { return ausDisponivel() && ativo(); }
+    /** F3: o servidor recebe os comandos das despesas desta conta (`despesas`). Sem ela, as despesas só se lêem. */
+    function despDisponivel() { return !!DS && DS.disponivel(K.funcsPessoal()); }
+    function despPodeEscrever() { return despDisponivel() && ativo(); }
 
     // ── Leitura ──
     async function ler(forcar) {
@@ -181,24 +191,28 @@
       var s = P.intervalo(p.inicio, p.fim) + (pres ? '' : ' · ' + n + (n === 1 ? ' dia' : ' dias')) + (p.justificativos ? ' · justificativo no arquivo RH' : (p.anexo ? ' · com comprovativo' : ''));
       return linha({ ic: pres ? 'obra' : 'falta', cls: e.cls, t: p.rotulo + (det ? ' · ' + det : ''), s: s, est: e, k: 'ft-' + p.id, fn: aoTocar(p, folhaFalta) });
     }
+    /** A pílula de uma despesa: o estado, ou «Por enviar» / «Não entrou» quando há um comando dela na fila (F3). */
+    function estadoDespDe(x) { return x.comErro ? { t: 'Não entrou', cls: 'neg' } : (x.porEnviar ? { t: 'Por enviar', cls: 'ama' } : P.estadoDespesa(x)); }
     function linhaDespesa(x) {
-      var e = P.estadoDespesa(x), im = P.imputCurta(x);
-      return linha({ ic: 'etiqueta', cls: e.cls === 'nav' ? '' : e.cls, t: (x.categoria || 'Despesa') + ' · ' + P.eur(x.valor), s: (x.data ? D.textoDiaCurto(x.data) : '') + (im ? ' · ' + im : ''), est: e, k: 'dp-' + x.id, fn: function () { folhaDespesa(x.id); } });
+      var e = estadoDespDe(x), im = P.imputCurta(x);
+      return linha({ ic: 'etiqueta', cls: e.cls === 'nav' ? '' : e.cls, t: (x.categoria || 'Despesa') + ' · ' + P.eur(x.valor), s: (x.data ? D.textoDiaCurto(x.data) : '') + (im ? ' · ' + im : ''), est: e, k: 'dp-' + x.id, fn: aoTocar(x, folhaDespesa) });
     }
     function linhaFeriado(f, comToque) {
       var s = f.fecho ? f.nome + ' · conta se um pedido teu o cobrir' : f.nome + ' · não conta como dia de férias';
       return linha({ ic: 'cal', cls: '', t: P.intervalo(f.inicio, f.fim), s: s, k: comToque ? 'fer-' + f.inicio : null, fn: comToque ? folhaFeriados : null });
     }
-    /** As acções rápidas (o protótipo): Pedir férias e Falta ou ausência; a despesa e as horas «Em breve» (F3 e F4). */
+    /** As acções rápidas (o protótipo): Pedir férias e Falta ou ausência (F2), a Despesa (F3, só com `despesas`; sem ela
+        «Em breve»), as horas «Em breve» (F4). */
     function rapidas() {
       var w = el('div', 'mv-pes-rap'), um = function (k, nomeIc, rot, fn, pri) {
-        var b = bt(pri ? 'pri' : (fn ? '' : 'embreve')), c = el('span', 'c'); c.appendChild(ic(nomeIc)); b.appendChild(c); b.appendChild(el('span', null, rot)); b.setAttribute('data-k', 'rap-' + k);
+        var b = bt(pri && fn ? 'pri' : (fn ? '' : 'embreve')), c = el('span', 'c'); c.appendChild(ic(nomeIc)); b.appendChild(c); b.appendChild(el('span', null, rot)); b.setAttribute('data-k', 'rap-' + k);
         if (fn) b.addEventListener('click', fn); else { b.setAttribute('aria-disabled', 'true'); b.addEventListener('click', function () { K.toast(rot + ' pelo telemóvel chega a seguir. Por agora, no computador.'); }); }
         w.appendChild(b);
       };
-      um('ferias', 'cal', 'Pedir férias', function () { abrirPedir('FERIAS'); }, true);
-      um('falta', 'falta', 'Falta ou ausência', function () { abrirPedir(''); });
-      um('despesa', 'etiqueta', 'Despesa', null); um('horas', 'relogio', 'Horas', null);
+      var aus = podeEscrever();
+      um('ferias', 'cal', 'Pedir férias', aus ? function () { abrirPedir('FERIAS'); } : null, true);
+      um('falta', 'falta', 'Falta ou ausência', aus ? function () { abrirPedir(''); } : null);
+      um('despesa', 'etiqueta', 'Despesa', despPodeEscrever() ? function () { abrirDespesa(); } : null); um('horas', 'relogio', 'Horas', null);
       return w;
     }
 
@@ -218,7 +232,7 @@
         barraEl(d.saldo).forEach(function (x) { v.appendChild(x); });
         if (r.prox) v.appendChild(el('p', 'mv-pes-prox', r.prox));
         if (d.saldo && d.saldo.comPorEnviar) v.appendChild(el('p', 'mv-pes-prox', 'Já conta com o que tens por enviar.'));
-        if (podeEscrever()) { v.appendChild(rapidas()); cartaoPorEnviar(v); }
+        if (podeEscrever() || despPodeEscrever()) { v.appendChild(rapidas()); cartaoPorEnviar(v); }
         else v.appendChild(el('p', 'mv-pes-nota', 'Pedir férias, registar faltas e despesas pelo telemóvel chega a seguir. Por agora, no computador.'));
         var a = P.aSeguir(d, feriados());
         v.appendChild(grupo('A seguir', a.pedido || a.feriado ? [a.pedido ? linhaPedido(a.pedido, d) : null, a.feriado ? linhaFeriado(a.feriado, true) : null] : [linha({ ic: 'cal', t: 'Nada marcado a seguir' })]));
@@ -229,7 +243,8 @@
         v.appendChild(grupo('Faltas e ausências', [linha({ ic: 'falta', t: fm.mes + ': ' + fm.faltas + (fm.faltas === 1 ? ' falta' : ' faltas') + ' · ' + fm.fora + ' fora do escritório', s: 'Teletrabalho e Out of Office contam à parte', k: 'ir-faltas', fn: function () { K.abrir('v-pes-faltas'); } })]));
         v.appendChild(grupo('Horas e atrasos', [linha({ ic: 'relogio', t: 'O meu registo de horas e os atrasos', s: 'Chega em breve' })]));
         v.appendChild(grupo('Despesas', [linha({ ic: 'etiqueta', t: 'Por reembolsar: ' + P.eur(pr.valor), s: (Number(pr.n) || 0) + ((Number(pr.n) || 0) === 1 ? ' despesa' : ' despesas') + ' · pendentes ou a aguardar assinatura', k: 'ir-despesas', fn: function () { K.abrir('v-pes-despesas'); } })]));
-        if (podeEscrever()) v.appendChild(el('p', 'mv-pes-nota', 'Despesas e horas pelo telemóvel chegam a seguir. Por agora, no computador.'));
+        if (despPodeEscrever()) v.appendChild(el('p', 'mv-pes-nota', 'As horas pelo telemóvel chegam a seguir. Por agora, no computador.'));
+        else if (podeEscrever()) v.appendChild(el('p', 'mv-pes-nota', 'Despesas e horas pelo telemóvel chegam a seguir. Por agora, no computador.'));
       });
     }
     /** O cartão «Por enviar» do Pessoal: os pedidos desta conta que ainda não entraram (os parados primeiro, com o motivo). */
@@ -237,8 +252,8 @@
       var ms = meusNaFila(); if (!ms.length) return;
       ms.sort(function (a, b) { return (a.estado === 'parado' ? 0 : 1) - (b.estado === 'parado' ? 0 : 1) || String(a.criadoEm).localeCompare(String(b.criadoEm)); });
       v.appendChild(grupo('Por enviar', ms.map(function (q) {
-        var par = q.estado === 'parado', fer = AU.cfg(q.tipoAus || (q.campos && q.campos.tipo)).ferias;
-        return linha({ ic: fer ? 'cal' : 'falta', cls: par ? 'neg' : 'ama', t: AU.tituloItem(q) + (par ? ' · não entrou' : ''), s: par ? (q.erro || 'Não entrou') : (AU.resumoItem(q) || q.resumo || '') + ' · ' + estadoFila(q, false),
+        var par = q.estado === 'parado', L = logica(q);
+        return linha({ ic: icItem(q), cls: par ? 'neg' : 'ama', t: L.tituloItem(q) + (par ? ' · não entrou' : ''), s: par ? (q.erro || 'Não entrou') : (L.resumoItem(q) || q.resumo || '') + ' · ' + estadoFila(q, false),
           est: par ? { t: 'Ver', cls: 'neg' } : null, k: 'pe-' + q.id, fn: function () { folhaItem(q); } });
       }), String(ms.length)));
     }
@@ -299,13 +314,14 @@
     function desenharDespesas() {
       var v = $('v-pes-despesas'); if (!v) return;
       comFoco(v, function () {
-        var d = dados();
+        var d = dadosVista();   // F3: com os comandos por enviar por cima (uma despesa por enviar vê-se logo)
         lead(v, 'As tuas despesas e o reembolso');
         faixaErro(v);
         if (!d) { semDados(v); return; }
         var pr = d.porReembolsar || {}, n = Number(pr.n) || 0, cart = el('div', 'mv-grupo mv-pes-cart'), tot = el('div', 'mv-pes-tot');
         tot.appendChild(el('small', null, 'Por reembolsar')); tot.appendChild(el('b', null, P.eur(pr.valor))); tot.appendChild(el('small', null, n + (n === 1 ? ' despesa' : ' despesas') + ' · só as tuas'));
         cart.appendChild(tot); v.appendChild(cart);
+        if (despPodeEscrever()) { var br = bt('mv-btn pri mv-pes-acao', 'Registar despesa'); br.setAttribute('data-k', 'dp-registar'); br.insertBefore(ic('mais'), br.firstChild); br.addEventListener('click', function () { abrirDespesa(); }); v.appendChild(br); }
         v.appendChild(segm('Estado', [['reemb', 'Por reembolsar'], ['pagas', 'Pagas'], ['anuladas', 'Anuladas']], S.filtroDp, 'dp', function (x) { S.filtroDp = x; desenharDespesas(); }));
         var gs = P.despesasGrupos(d, S.filtroDp);
         if (!gs.length) v.appendChild(el('p', 'mv-nada', S.filtroDp === 'pagas' ? 'Sem despesas pagas em ' + d.ano + '.' : (S.filtroDp === 'anuladas' ? 'Sem despesas anuladas em ' + d.ano + '.' : 'Nada por reembolsar.')));
@@ -407,10 +423,11 @@
       }, pe: AU ? peAcoes(p, d, 'Corrigir') : null });
     }
     function folhaDespesa(id) {
-      var d = dados(), x = d && porId(d.despesas, id); if (!x) return;
-      var e = P.estadoDespesa(x);
-      K.folha({ titulo: P.eur(x.valor), sub: (x.categoria || 'Despesa') + (x.data ? ' · ' + D.textoDiaCurto(x.data) : ''), alta: true, corpo: function (cc) {
+      var d = dadosVista(), x = d && porId(d.despesas, id); if (!x) return;
+      var e = estadoDespDe(x);
+      K.folha({ titulo: P.eur(x.valor), sub: (x.categoria || 'Despesa') + (x.data ? ' · ' + D.textoDiaCurto(x.data) : ''), alta: true, pe: DS ? peDespesa(x) : null, corpo: function (cc) {
         cc.appendChild(pilula(e));
+        faixaErroRegisto(cc, x);
         if (x.estado !== 'ANULADA') {
           var ord = { PENDENTE: 0, IMPRESSA: 1, PAGA: 2 }[x.estado] || 0, ps = el('div', 'mv-pes-passos'); ps.setAttribute('role', 'img'); ps.setAttribute('aria-label', 'Reembolso: ' + e.t);
           ['Pendente', 'Na folha', 'Paga'].forEach(function (t, i) { ps.appendChild(el('span', i <= ord ? 'on' : null, t)); });
@@ -439,7 +456,11 @@
     }
 
     // ════════════════ F2: pedir, corrigir e cancelar (ausencias.js) ════════════════
-    function meusNaFila() { return AU ? AU.meus(K.fila(), K.contaId()).filter(function (q) { return !K.apagar[q.id]; }) : []; }
+    /** Os comandos desta conta na fila: os das ausências (tipo 'aus') e, desde a F3, os das despesas (tipo 'desp'). */
+    function meusNaFila() { return (AU ? AU.meus(K.fila(), K.contaId()) : []).concat(DS ? DS.meus(K.fila(), K.contaId()) : []).filter(function (q) { return !K.apagar[q.id]; }); }
+    /** A lógica de um item da fila: despesas.js para os 'desp', ausencias.js para os outros. */
+    function logica(q) { return q && q.tipo === 'desp' && DS ? DS : AU; }
+    function icItem(q) { return q.tipo === 'desp' ? 'etiqueta' : (AU && AU.cfg(q.tipoAus || (q.campos && q.campos.tipo)).ferias ? 'cal' : 'falta'); }
     function itemDaFila(id) { return id ? (K.fila().filter(function (q) { return q.id === id; })[0] || null) : null; }
     function agoraIso() { return new Date().toISOString(); }
     function estadoFila(q, emCurso) {
@@ -448,7 +469,7 @@
       if (q.adiadoAte && q.adiadoAte > agoraIso()) return 'Ainda dá para desfazer';
       if (!K.A.sessaoValida()) return 'À espera de entrares';
       if (!K.online()) return 'À espera de rede';
-      if (!ausDisponivel()) return 'À espera do servidor';
+      if (q.tipo === 'desp' ? !despDisponivel() : !ausDisponivel()) return 'À espera do servidor';
       return q.erro || 'Na fila';
     }
     function tirarDaFila(q) { K.tirarDaFila(q); K.apagarItem(q.id); }
@@ -463,7 +484,7 @@
     /** Um comando que já estava na fila (o «Mudar» de um que não entrou, ou de um que ainda não saiu), outra vez a seguir. */
     function reporComando(q, o, texto) {
       var antes = JSON.parse(JSON.stringify(q));
-      if (!AU.reenviar(q, Object.assign({ novoId: K.novoId, adiarMs: ADIAR }, o))) { K.toast('Este pedido pode já ter seguido: espera pela resposta do servidor antes de o mudar.', { ms: 6000 }); return false; }
+      if (!logica(q).reenviar(q, Object.assign({ novoId: K.novoId, adiarMs: ADIAR }, o))) { K.toast((q.tipo === 'desp' ? 'Isto' : 'Este pedido') + ' pode já ter seguido: espera pela resposta do servidor antes de o mudar.', { ms: 6000 }); return false; }
       K.guardarItem(q); redesenhar();
       K.toast(texto + (K.online() ? '' : ' · segue quando houver rede'), { ms: ADIAR, itemId: q.id,
         desfazer: function () { Object.keys(q).forEach(function (k) { delete q[k]; }); Object.assign(q, antes); K.guardarItem(q); redesenhar(); },
@@ -545,9 +566,12 @@
     }
 
     // ── Férias: 1. Datas · 2. Rever e enviar ──
+    /** No «Mudar» de um corrigir que mudou entretanto: o formulário parte do pedido de agora e diz o que mudou (revisão da F3, C2). */
+    function faixaMudou(v, f) { if (f.servidorMudou && f.servidorMudou.length) v.appendChild(faixa('ama', 'alerta', 'No computador (ou noutro telemóvel) mudou ' + AU.textoMudou(f.servidorMudou) + '. O formulário tem o pedido de agora, com o que mudaste por cima: revê e envia.', 'Mudou entretanto')); }
     function feriasDatas(v, f, d) {
       var fer = feriados(), raw = f.id ? registoBase(f.id) : null;
       cabecalhoPasso(v, f, 'Que dias?', f.accao === 'corrigir' && raw ? 'Pedido de ' + P.intervalo(raw.inicio, raw.fim) : 'Férias' + (d ? ' ' + d.ano : ''));
+      faixaMudou(v, f);
       if (raw && raw.estado === 'APPROVED') v.appendChild(faixa('ama', 'alerta', 'Este pedido já está aprovado. Se mudares as datas, volta a Pendente e a chefia decide de novo.'));
       var cart = el('div', 'mv-grupo mv-pes-cart'), cm = calMes(f, d); if (cm) cart.appendChild(cm);
       var lg = el('div', 'mv-leg linha'); lg.setAttribute('aria-hidden', 'true');
@@ -610,6 +634,7 @@
     function faltaDados(v, f, d) {
       var t = AU.cfg(f.tipo), raw = f.id ? registoBase(f.id) : null, nD = AU.corridos(f.inicio, f.fim) || 1;
       cabecalhoPasso(v, f, f.accao === 'corrigir' ? t.l : 'Dias e detalhe', f.accao === 'corrigir' && raw ? P.intervalo(raw.inicio, raw.fim) : t.l);
+      faixaMudou(v, f);
       if (f.accao === 'corrigir' && raw) v.appendChild(faixa('nav', 'lapis', 'Corriges até ' + D.textoDiaCurto(AU.fimDoMes(raw.inicio)) + (raw.estado === 'PENDING' && !t.presenca ? ', enquanto o RH não a validar' : '') + '. O histórico do pedido guarda o que mudou.'));
       v.appendChild(rotulo('Início', 'pes-f-ini', true));
       v.appendChild(campoData('pes-f-ini', 'f-ini', f.inicio, null, function (x) { f.inicio = x; f.fim = x ? D.somarDias(x, nD - 1) : x; S.formErro = null; desenharForm(); }));
@@ -793,7 +818,7 @@
       var fCopia = JSON.parse(JSON.stringify(f)), item;
       if (q0 && K.fila().indexOf(q0) >= 0 && (q0.estado === 'parado' || !q0.tentou)) {   // «Mudar» um que não entrou (ou que ainda não tinha saído): o mesmo item, outra intenção
         item = q0;
-        reporComando(q0, { campos: AU.camposDe(f, excessoVisto), versao: f.accao === 'corrigir' && raw ? raw.versao : undefined }, textoEnviado(f));
+        reporComando(q0, { campos: AU.camposDe(f, excessoVisto), versao: f.accao === 'corrigir' && raw ? raw.versao : undefined, base: f.accao === 'corrigir' && raw ? AU.baseDe(raw) : undefined }, textoEnviado(f));
       } else {
         item = AU.itemComando({ accao: f.accao, registo: raw, form: f, excessoVisto: excessoVisto, contaId: K.contaId(), contaNome: contaNome(), novoId: K.novoId, adiarMs: ADIAR, id: f.accao === 'pedir' && f.id ? f.id : undefined });
         porComando(item, textoEnviado(f), { desfeito: function () { S.feito = null; var g = JSON.parse(JSON.stringify(fCopia)); g.deItem = ''; abrirForm(g, { substituir: K.vista() === 'v-pes-feito' }); } });
@@ -851,16 +876,22 @@
     }
 
     // ── «Por enviar»: um comando desta conta (a folha, e a linha do «Por enviar» da casca) ──
+    /** Um comando à espera tem «Mudar»? (o de uma despesa só quando é um formulário: registar ou corrigir) */
+    function mudavel(q) { return q.tipo !== 'desp' || q.accao === 'registar' || q.accao === 'corrigir'; }
+    function rotMudar(q) {
+      if (q.tipo === 'desp') return q.confirmarFolha ? 'Confirmar e gravar' : (q.accao === 'registar' || q.accao === 'corrigir' ? 'Mudar' : 'Tentar outra vez');
+      return q.confirmar ? 'Confirmar e enviar' : (q.accao === 'cancelar' ? 'Cancelar outra vez' : 'Mudar');
+    }
     function folhaItem(q) {
-      var par = q.estado === 'parado', saiu = !par && !!q.tentou;
-      K.folha({ titulo: AU.tituloItem(q), sub: AU.resumoItem(q) || q.resumo || '', corpo: function (cc) {
+      var par = q.estado === 'parado', saiu = !par && !!q.tentou, L = logica(q);
+      K.folha({ titulo: L.tituloItem(q), sub: L.resumoItem(q) || q.resumo || '', corpo: function (cc) {
         if (par) cc.appendChild(faixa('neg', 'alerta', q.erro || 'Não entrou', 'Não foi aceite'));
         else cc.appendChild(el('p', 'mv-folha-txt', saiu ? 'Pode já ter seguido: a resposta do servidor ainda não chegou. Tenta outra vez quando houver rede.' : estadoFila(q, false) + '. Segue sozinho quando houver rede, com a app aberta.'));
-        if (par && !q.mudar) cc.appendChild(el('p', 'mv-folha-txt', 'Isto não se resolve a mudar o pedido. Desiste dele aqui; se precisares, fala com o RH ou com a tua chefia.'));
+        if (par && !q.mudar) cc.appendChild(el('p', 'mv-folha-txt', q.tipo === 'desp' ? 'Isto não se resolve a mudar a despesa. Desiste aqui; se precisares, trata dela no computador.' : 'Isto não se resolve a mudar o pedido. Desiste dele aqui; se precisares, fala com o RH ou com a tua chefia.'));
       }, pe: function (p) {
         var bts = [];
-        if (par && q.mudar) { var bm = bt('mv-btn pri', q.confirmar ? 'Confirmar e enviar' : (q.accao === 'cancelar' ? 'Cancelar outra vez' : 'Mudar')); bm.id = 'b-pes-mudar'; bm.addEventListener('click', function () { K.fecharFolha(); mudar(q); }); bts.push(bm); }
-        if (!par && !saiu) { var bm2 = bt('mv-btn', 'Mudar'); bm2.id = 'b-pes-mudar'; bm2.addEventListener('click', function () { K.fecharFolha(); mudar(q); }); bts.push(bm2); }
+        if (par && q.mudar) { var bm = bt('mv-btn pri', rotMudar(q)); bm.id = 'b-pes-mudar'; bm.addEventListener('click', function () { K.fecharFolha(); mudar(q); }); bts.push(bm); }
+        if (!par && !saiu && mudavel(q)) { var bm2 = bt('mv-btn', 'Mudar'); bm2.id = 'b-pes-mudar'; bm2.addEventListener('click', function () { K.fecharFolha(); mudar(q); }); bts.push(bm2); }
         if (!saiu) { var bx = bt('mv-btn neg', par ? 'Desistir' : 'Apagar'); bx.id = 'b-pes-desistir'; bx.addEventListener('click', function () { K.fecharFolha(); desistir(q); }); bts.push(bx); }
         else { var bt2 = bt('mv-btn', 'Tentar agora'); bt2.addEventListener('click', function () { K.fecharFolha(); K.drenar(true); }); bts.push(bt2); }
         if (bts.length === 1) p.appendChild(bts[0]); else { var dois = el('div', 'mv-pe2'); bts.forEach(function (b) { dois.appendChild(b); }); p.appendChild(dois); }
@@ -869,6 +900,7 @@
     /** «Mudar»: o formulário com o que se tinha (um pedidoId novo ao reenviar); no acima do saldo, a confirmação com o excesso
         do servidor; num cancelar que mudou, outra vez com a versão de agora. */
     function mudar(q, o) {
+      if (q.tipo === 'desp') { mudarDesp(q, o); return; }
       var raw = registoBase(q.registoId);
       if (q.estado === 'parado' && q.confirmar) {
         var ex = (q.details && q.details.excesso) || [];
@@ -886,21 +918,23 @@
     }
     function desistir(q) {
       K.tirarDaFila(q); K.apagar[q.id] = true; redesenhar();
-      K.toast('Apagado · ' + AU.tituloItem(q).toLowerCase(), { desfazer: function () { delete K.apagar[q.id]; K.porNaFila(q); redesenhar(); }, aoFim: function () { if (K.apagar[q.id]) { delete K.apagar[q.id]; K.apagarItem(q.id); } } });
+      K.toast('Apagado · ' + logica(q).tituloItem(q).toLowerCase(), { desfazer: function () { delete K.apagar[q.id]; K.porNaFila(q); redesenhar(); }, aoFim: function () { if (K.apagar[q.id]) { delete K.apagar[q.id]; K.apagarItem(q.id); } } });
     }
     function linhaFila(q, emCurso) {
       var par = q.estado === 'parado', saiu = !par && (emCurso || !!q.tentou), acoes = [];
-      if (par && q.mudar) acoes.push(['lapis', q.confirmar ? 'Confirmar' : (q.accao === 'cancelar' ? 'Cancelar outra vez' : 'Mudar'), function () { mudar(q); }]);
-      else if (!par && !saiu) { acoes.push(['lapis', 'Mudar', function () { mudar(q); }]); acoes.push(['atual', 'Tentar agora', function () { if (!K.A.sessaoValida()) { K.A.pedirLogin('Entra outra vez: o que tens por enviar segue logo a seguir.'); return; } q.adiadoAte = ''; K.drenar(true); }]); }
+      if (par && q.mudar) acoes.push(['lapis', q.tipo === 'desp' ? (q.confirmarFolha ? 'Confirmar' : rotMudar(q)) : (q.confirmar ? 'Confirmar' : (q.accao === 'cancelar' ? 'Cancelar outra vez' : 'Mudar')), function () { mudar(q); }]);
+      else if (!par && !saiu) { if (mudavel(q)) acoes.push(['lapis', 'Mudar', function () { mudar(q); }]); acoes.push(['atual', 'Tentar agora', function () { if (!K.A.sessaoValida()) { K.A.pedirLogin('Entra outra vez: o que tens por enviar segue logo a seguir.'); return; } q.adiadoAte = ''; K.drenar(true); }]); }
       else if (!par) acoes.push(['atual', 'Tentar agora', function () { K.drenar(true); }]);
-      return { ic: AU.cfg(q.tipoAus).ferias ? 'cal' : 'falta', titulo: AU.tituloItem(q), resumo: AU.resumoItem(q) || q.resumo || '', estado: estadoFila(q, emCurso) + (saiu && !emCurso ? ' · pode já ter seguido' : ''), cls: par ? 'neg' : null, acoes: acoes, apagar: par || !saiu };
+      var L = logica(q);
+      return { ic: icItem(q), titulo: L.tituloItem(q), resumo: L.resumoItem(q) || q.resumo || '', estado: estadoFila(q, emCurso) + (saiu && !emCurso ? ' · pode já ter seguido' : ''), cls: par ? 'neg' : null, acoes: acoes, apagar: par || !saiu };
     }
     /** O comando que se está a mudar não sai enquanto o formulário dele está aberto (só nesta abertura, em memória). */
-    function retido(q) { return !!(S.form && S.form.deItem === q.id && K.vista() === 'v-pes-form'); }
+    function retido(q) { return !!(S.form && S.form.deItem === q.id && K.vista() === 'v-pes-form') || !!(S.dform && S.dform.deItem === q.id && K.vista() === 'v-pes-desp-form'); }
 
     // ── O envio (chamado pelo drenar da casca, item a item) ──
-    function processar(q) { return AU.processar(q, K.deps()); }
+    function processar(q) { return logica(q).processar(q, K.deps()); }
     async function aoResultado(q, res) {
+      if (q.tipo === 'desp') { aoResultadoDesp(q, res); return; }
       var noFeito = S.feito && S.feito.itemId === q.id && K.vista() === 'v-pes-feito';
       if (res.estado === 'entregue' && q.registo) {
         atualizarCopia(q.registo);
@@ -914,24 +948,212 @@
       redesenhar();
     }
 
-    function desenhar(v) { if (v === 'v-pessoal') desenharTopo(); else if (v === 'v-pes-ferias') desenharFerias(); else if (v === 'v-pes-faltas') desenharFaltas(); else if (v === 'v-pes-despesas') desenharDespesas(); else if (v === 'v-pes-form') desenharForm(); else if (v === 'v-pes-feito') desenharFeito(); }
+    // ════════════════ F3: registar, corrigir, anular, «Paga» e desfazer (despesas.js) ════════════════
+    /** A despesa do servidor (a cópia, sem os comandos por cima): é a dela que leva a `versao` e o `pode`. */
+    function registoDespBase(id) { var d = dados(); return d ? porId(d.despesas, id) : null; }
+    var TEXTO_DESP = { registar: 'Despesa registada', corrigir: 'Corrigida · fica no histórico', anular: 'Despesa anulada · fica no histórico', paga: 'Marcada como paga', despagar: '«Paga» desfeita' };
+    /** O pé da folha de uma despesa: as acções do `pode` (Corrigir, Marcar paga, Desfazer «Paga», Anular); nada sem a F3. */
+    function peDespesa(x) {
+      if (!despPodeEscrever() || x.porEnviar) return null;
+      var raw = registoDespBase(x.id) || x, pode = raw.pode || [], bts = [], anular = null;
+      if (pode.indexOf('corrigir') >= 0) { var bc = bt('mv-btn', 'Corrigir'); bc.id = 'b-desp-corrigir'; bc.addEventListener('click', function () { K.fecharFolha(); abrirDespForm(DS.formDoRegisto(raw)); }); bts.push(bc); }
+      if (pode.indexOf('paga') >= 0) { var bp = bt('mv-btn pri', 'Marcar paga'); bp.id = 'b-desp-paga'; bp.addEventListener('click', function () { K.fecharFolha(); comandoDesp(raw, 'paga'); }); bts.push(bp); }
+      if (pode.indexOf('despagar') >= 0) { var bd = bt('mv-btn', 'Desfazer «Paga»'); bd.id = 'b-desp-despagar'; bd.addEventListener('click', function () { K.fecharFolha(); comandoDesp(raw, 'despagar'); }); bts.push(bd); }
+      if (pode.indexOf('anular') >= 0) { anular = bt('mv-btn neg', 'Anular'); anular.id = 'b-desp-anular'; anular.addEventListener('click', function () { folhaAnular(raw); }); }
+      if (!bts.length && !anular) return null;
+      return function (pe) {
+        var w = el('div', 'mv-btns');
+        if (bts.length === 1) w.appendChild(bts[0]); else if (bts.length) { var dois = el('div', 'mv-pe2'); bts.forEach(function (b) { dois.appendChild(b); }); w.appendChild(dois); }
+        if (anular) w.appendChild(anular);
+        pe.appendChild(w);
+      };
+    }
+    /** Marcar paga ou desfazer «Paga»: segue já com o Desfazer de 5 s (nada se perde; o servidor decide pelo estado de agora). */
+    function comandoDesp(raw, accao) {
+      var q = DS.itemComando({ accao: accao, registo: raw, contaId: K.contaId(), contaNome: contaNome(), novoId: K.novoId, adiarMs: ADIAR });
+      porComando(q, TEXTO_DESP[accao]);
+    }
+    /** Anular (só Pendente, pelo `pode`): o motivo é obrigatório, como no computador (deleteExpenseRow); fica Anulada, não se apaga. */
+    function folhaAnular(raw) {
+      var erro = function (t) { var e = $('pes-d-motivo-erro'); if (!e) return; limpar(e); e.hidden = !t; if (t) { e.appendChild(ic('alerta')); e.appendChild(el('span', null, t)); } };
+      K.folha({ titulo: 'Anular a despesa?', foco: function () { return $('pes-d-motivo'); }, corpo: function (cc) {
+        cc.appendChild(el('p', 'mv-folha-txt', [raw.categoria, P.eur(raw.valor), raw.data ? D.textoDiaCurto(raw.data) : ''].filter(Boolean).join(' · ') + '. Fica Anulada (não se apaga), com o motivo, e o histórico diz que foste tu.'));
+        cc.appendChild(rotulo('Motivo', 'pes-d-motivo', true));
+        var t = el('textarea', 'mv-campo curto'); t.id = 'pes-d-motivo'; t.maxLength = DS.LIMITES.motivo; t.placeholder = 'Ex.: registada em duplicado'; t.setAttribute('autocapitalize', 'sentences'); t.setAttribute('aria-describedby', 'pes-d-motivo-erro');
+        t.addEventListener('input', function () { erro(''); });
+        cc.appendChild(t);
+        var e = el('p', 'mv-erro'); e.id = 'pes-d-motivo-erro'; e.setAttribute('role', 'alert'); e.hidden = true; cc.appendChild(e);
+      }, pe: function (p) {
+        var dois = el('div', 'mv-pe2'), a = bt('mv-btn', 'Manter'), b = bt('mv-btn neg', 'Anular despesa'); b.id = 'b-desp-anular-ok';
+        a.addEventListener('click', function () { K.fecharFolha(); });
+        b.addEventListener('click', function () {
+          var m = String(($('pes-d-motivo') || {}).value || '').trim();
+          if (!m) { erro('Escreve o motivo.'); K.A.focar($('pes-d-motivo')); return; }
+          K.fecharFolha();
+          porComando(DS.itemComando({ accao: 'anular', registo: raw, motivo: m, contaId: K.contaId(), contaNome: contaNome(), novoId: K.novoId, adiarMs: ADIAR }), TEXTO_DESP.anular);
+        });
+        dois.appendChild(a); dois.appendChild(b); p.appendChild(dois);
+      } });
+    }
+    /** Já foi para a folha (decisão 4): avisa antes de gravar; também o 409 JA_NA_FOLHA leva aqui. info: { vai (o que vai
+        mudar na despesa de agora), mudou (o que mudou entretanto no servidor) } — revisão da F3, C1: quem confirma vê a
+        despesa de agora e só manda o que mudou. */
+    function folhaConfirmarFolha(ref, aoConfirmar, info) {
+      info = info || {};
+      var d = dadosVista(), lista_ = function (cc, titulo, l) { if (!l || !l.length) return; cc.appendChild(el('p', 'mv-lh', titulo)); var ul = el('ul', 'mv-hist'); l.forEach(function (x) { ul.appendChild(el('li', null, DS.textoDiferenca(x, d))); }); cc.appendChild(ul); };
+      K.folha({ titulo: 'Já foi para a folha', corpo: function (cc) {
+        cc.appendChild(el('p', 'mv-folha-txt', DS.textoFolha(ref)));
+        lista_(cc, 'Mudou entretanto (no computador ou noutro telemóvel)', info.mudou);
+        if (info.vai) { if (info.vai.length) lista_(cc, 'O que vais mudar', info.vai); else cc.appendChild(el('p', 'mv-folha-txt', 'A despesa já está como a querias: não muda nada.')); }
+        cc.appendChild(el('p', 'mv-folha-txt', 'O histórico da despesa vai dizer que foi corrigida depois de ir para a folha.'));
+      }, pe: function (p) {
+        var dois = el('div', 'mv-pe2'), a = bt('mv-btn', 'Rever'), b = bt('mv-btn pri', 'Confirmar e gravar'); b.id = 'b-desp-folha-ok';
+        a.addEventListener('click', function () { K.fecharFolha(); }); b.addEventListener('click', function () { K.fecharFolha(); aoConfirmar(); });
+        dois.appendChild(a); dois.appendChild(b); p.appendChild(dois);
+      } });
+    }
+    function abrirDespesa(o) {
+      if (!despPodeEscrever()) { K.toast('Registar despesas pelo telemóvel ainda não está ligado no servidor. Por agora, no computador.'); return; }
+      var d = dados();
+      abrirDespForm(DS.formNovo((d && d.hoje) || K.hojeDia().dia), o);
+    }
+    function abrirDespForm(f, o) { S.dform = f; S.dformErro = null; K.abrir('v-pes-desp-form', !!(o && o.substituir), !!(o && o.daFolha)); }
+    /** O formulário da despesa: um só ecrã (data, categoria, valor, imputação, fatura em papel, observações). Registar com a
+        imputação são 5 toques a partir do Pessoal (Despesa, a categoria, o valor, a obra, Registar); sem ela, 4. */
+    function desenharDespForm() {
+      var v = $('v-pes-desp-form'); if (!v || !S.dform || !DS) return;
+      var f = S.dform;
+      comFoco(v, function () {
+        var d = dadosVista(), raw = f.accao === 'corrigir' ? registoDespBase(f.id) : null;
+        var ld = el('p', 'mv-lead', f.accao === 'corrigir' ? 'Corriges a despesa; o histórico guarda o que mudou.' : 'Só as tuas · entra na próxima folha de despesas.'); ld.tabIndex = -1; ld.setAttribute('data-foco-inicial', ''); v.appendChild(ld);
+        if (f.servidorMudou && f.servidorMudou.length) v.appendChild(faixa('ama', 'alerta', f.servidorMudou.map(function (x) { return DS.textoDiferenca(x, d); }).join(' · ') + '. O que mudaste fica por cima: revê e envia.', 'Mudou entretanto'));
+        if (raw && DS.naFolha(raw)) v.appendChild(faixa('ama', 'alerta', 'Esta despesa já foi para a folha' + (raw.folha ? ' ' + raw.folha : '') + '. Podes corrigi-la: a folha em papel não muda, e confirmas antes de gravar.', 'Na folha'));
+        v.appendChild(rotulo('Data', 'pes-d-data', true));
+        v.appendChild(campoData('pes-d-data', 'd-data', f.data, null, function (x) { f.data = x; S.dformErro = null; }));
+        v.appendChild(rotulo('Categoria', null, true));
+        var cs = chips('Categoria', DS.CATEGORIAS, f.categoria, 'd-cat', function (x) { f.categoria = x; S.dformErro = null; desenharDespForm(); var y = $('pes-d-valor'); if (y && !String(f.valor || '').trim()) K.A.focar(y); });
+        v.appendChild(cs);
+        v.appendChild(rotulo('Ou escreve outra', 'pes-d-cat'));
+        var ci = el('input', 'mv-in'); ci.id = 'pes-d-cat'; ci.value = f.categoria || ''; ci.maxLength = DS.LIMITES.categoria; ci.placeholder = 'Ex.: Parque da obra'; ci.setAttribute('data-k', 'd-cat-txt'); ci.setAttribute('autocapitalize', 'sentences'); ci.setAttribute('enterkeyhint', 'next');
+        ci.addEventListener('input', function () { f.categoria = ci.value; S.dformErro = null; [].forEach.call(cs.querySelectorAll('button'), function (b) { b.setAttribute('aria-pressed', String(b.textContent === ci.value.trim())); }); });
+        v.appendChild(ci);
+        v.appendChild(rotulo('Valor (€)', 'pes-d-valor', true));
+        var vi = el('input', 'mv-in'); vi.id = 'pes-d-valor'; vi.value = f.valor || ''; vi.setAttribute('inputmode', 'decimal'); vi.setAttribute('autocomplete', 'off'); vi.setAttribute('enterkeyhint', 'done'); vi.placeholder = '0,00'; vi.setAttribute('data-k', 'd-valor');
+        vi.addEventListener('input', function () { f.valor = vi.value; S.dformErro = null; });
+        v.appendChild(vi);
+        zonaImput(v, f, d);
+        v.appendChild(rotulo('Comprovativo', null));
+        var gf = el('div', 'mv-grupo');
+        gf.appendChild(opcao({ k: 'd-fatura', rot: 'Fatura em papel', desc: 'Já tenho o talão ou a fatura em papel', multi: true, on: !!f.faturaPapel, fn: function () { f.faturaPapel = !f.faturaPapel; desenharDespForm(); } }));
+        v.appendChild(gf);
+        v.appendChild(rotulo('Observações (opcional)', 'pes-d-notas'));
+        var t = el('textarea', 'mv-campo curto'); t.id = 'pes-d-notas'; t.maxLength = DS.LIMITES.notas; t.value = f.notas || ''; t.placeholder = 'Ex.: jantar com a equipa de montagem'; t.setAttribute('data-k', 'd-notas'); t.setAttribute('autocapitalize', 'sentences');
+        t.addEventListener('input', function () { f.notas = t.value; });
+        v.appendChild(t);
+        if (!K.online()) v.appendChild(faixa('ama', 'alerta', 'Sem rede: a despesa fica guardada neste telemóvel e envia-se sozinha quando houver rede.'));
+        var e = el('p', 'mv-erro'); e.id = 'pes-d-erro'; e.setAttribute('role', 'alert');
+        if (S.dformErro) { e.appendChild(ic('alerta')); e.appendChild(el('span', null, S.dformErro.texto)); } else e.hidden = true;
+        v.appendChild(e);
+      });
+      barraDespForm();
+    }
+    /** Imputar a: uma obra (as da leitura, também as pausadas) ou um departamento; «Sem imputação» é uma escolha. */
+    function zonaImput(v, f, d) {
+      v.appendChild(rotulo('Imputar a', null));
+      v.appendChild(segm('Imputar a', [['PROJETO', 'Obra'], ['DEPARTAMENTO', 'Departamento']], f.imputModo, 'd-imp', function (x) { f.imputModo = x; desenharDespForm(); }));
+      var modo = f.imputModo, g = el('div', 'mv-grupo mv-pes-oo'); g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', modo === 'PROJETO' ? 'Imputar a uma obra' : 'Imputar a um departamento');
+      var por = function (tipo, id) { return function () { f.imputTipo = tipo; f.imputId = id; S.dformErro = null; desenharDespForm(); }; };
+      g.appendChild(opcao({ k: 'd-imp-sem', rot: 'Sem imputação', on: !f.imputTipo, fn: por('', '') }));
+      if (modo === 'PROJETO') {
+        var os = DS.obrasImput(d);
+        if (f.imputTipo === 'PROJETO' && f.imputId && !os.some(function (o) { return o.id === f.imputId; })) g.appendChild(opcao({ k: 'd-o-' + f.imputId, rot: String(f.imputRotuloAntes || f.imputId).replace(/^Obra — /, ''), desc: 'Já não está entre as obras activas', on: true, fn: por('PROJETO', f.imputId) }));
+        if (!os.length) g.appendChild(linha({ ic: 'obra', t: 'Sem obras na leitura', s: 'Com rede, a lista atualiza-se' }));
+        os.forEach(function (o) { g.appendChild(opcao({ k: 'd-o-' + o.id, rot: (o.codigo ? o.codigo + ' · ' : '') + o.nome, desc: o.estado === 'PAUSED' ? 'Pausada' : '', on: f.imputTipo === 'PROJETO' && f.imputId === o.id, fn: por('PROJETO', o.id) })); });
+      } else {
+        ((d && d.departamentos) || []).forEach(function (x) { g.appendChild(opcao({ k: 'd-dp-' + x.codigo, rot: x.nome, on: f.imputTipo === 'DEPARTAMENTO' && f.imputId === x.codigo, fn: por('DEPARTAMENTO', x.codigo) })); });
+      }
+      v.appendChild(g);
+      if (f.imputTipo && f.imputTipo !== modo) v.appendChild(el('p', 'mv-pes-nota', 'Escolhido: ' + DS.imputRotulo(f.imputTipo, f.imputId, d)));
+    }
+    function barraDespForm() {
+      var bb = $('barra-pes-desp'); if (!bb || !S.dform) return; limpar(bb);
+      var pri = bt('mv-btn pri', S.dform.accao === 'corrigir' ? 'Guardar' : 'Registar'); pri.id = 'b-desp-enviar';
+      pri.addEventListener('click', function () { enviarDespForm(); });
+      bb.appendChild(pri);
+      K.A.medirBarra();
+    }
+    function enviarDespForm() {
+      var f = S.dform; if (!f) return;
+      var falta = DS.faltaNoForm(f);
+      if (falta) { S.dformErro = falta; desenharDespForm(); var e = $('pes-d-erro'); if (e) K.A.focar(e); return; }
+      S.dformErro = null;
+      var q0 = f.deItem ? itemDaFila(f.deItem) : null, raw = f.accao === 'corrigir' ? registoDespBase(f.id) : null;
+      if (f.accao === 'corrigir' && !raw && !q0) { K.toast('Esta despesa já não está na tua lista: lê o Pessoal outra vez.'); return; }
+      // corrigir manda só o que a pessoa mudou em relação ao que leu (f.base; no «Mudar», a despesa de agora)
+      if (f.accao === 'corrigir' && !DS.temMudancas(DS.camposDe(f))) { K.toast('Nada mudou: a despesa já estava assim.'); return; }
+      var segue = function (confirmou) {
+        var fCopia = JSON.parse(JSON.stringify(f));
+        if (q0 && K.fila().indexOf(q0) >= 0 && (q0.estado === 'parado' || !q0.tentou)) {   // «Mudar» um que não entrou (ou que ainda não saiu): o mesmo item, outra intenção
+          if (reporComando(q0, { campos: DS.camposDe(f, { confirmouFolha: confirmou }), versao: f.accao === 'corrigir' && raw ? raw.versao : undefined, base: f.accao === 'corrigir' ? (f.base || null) : undefined, registo: raw || undefined }, TEXTO_DESP[f.accao]) === false) return;
+        } else {
+          var item = DS.itemComando({ accao: f.accao, registo: raw, form: f, confirmouFolha: confirmou, contaId: K.contaId(), contaNome: contaNome(), novoId: K.novoId, adiarMs: ADIAR, id: f.accao === 'registar' && f.id ? f.id : undefined });
+          porComando(item, TEXTO_DESP[f.accao], { desfeito: function () { var g = JSON.parse(JSON.stringify(fCopia)); g.deItem = ''; abrirDespForm(g); } });
+        }
+        S.dform = null;
+        K.voltar();
+      };
+      if (raw && DS.naFolha(raw)) { folhaConfirmarFolha(raw.folha, function () { segue(true); }, { vai: DS.vaiMudar(DS.camposDe(f), raw) }); return; }
+      segue(false);
+    }
+    /** «Mudar» um comando de despesa: a confirmação da folha (JA_NA_FOLHA), outra vez com a versão de agora (anular, pagar e
+        desfazer que mudaram), ou o formulário com o que se tinha (registar, corrigir). */
+    function mudarDesp(q, o) {
+      var raw = registoDespBase(q.registoId), agora = (q.details && q.details.registo) || raw, versaoAgora = (agora && agora.versao) || q.versao;
+      if (q.estado === 'parado' && q.confirmarFolha) {
+        // a despesa de AGORA (details.registo) e só os campos que a pessoa mudou: o que o computador corrigiu entretanto fica
+        var info = agora ? { vai: DS.vaiMudar(q.campos, agora), mudou: q.base ? DS.diferencas(q.base, DS.baseDe(agora)) : [] } : {};
+        folhaConfirmarFolha(q.folha || (q.details && q.details.folha) || (agora && agora.folha) || '', function () { reporComando(q, { versao: versaoAgora, confirmouFolha: true, base: agora ? DS.baseDe(agora) : undefined, registo: agora || undefined }, 'Confirmado · segue já'); }, info);
+        return;
+      }
+      if (q.accao === 'anular' || q.accao === 'paga' || q.accao === 'despagar') {
+        if (!raw) { K.toast('Esta despesa já não está na tua lista: lê o Pessoal outra vez.'); return; }
+        reporComando(q, { versao: raw.versao }, 'Outra vez · segue já'); return;
+      }
+      abrirDespForm(DS.formDoItem(q, q.accao === 'corrigir' ? raw : null), o);
+    }
+    function aoResultadoDesp(q, res) {
+      if (res.estado === 'entregue' && q.registo) {
+        atualizarCopia(q.registo, DS);
+        var av = (q.avisos || [])[0];
+        K.toast(q.jaEntrou ? av : (av || DS.tituloItem(q) + ': enviado'), { ms: q.jaEntrou ? 8000 : 3500 });
+      }
+      if (res.estado === 'parar') {
+        if (q.details && q.details.registo) atualizarCopia(q.details.registo, DS);   // a despesa de agora: é sobre ela que se decide outra vez
+        K.toast(DS.tituloItem(q) + ': não entrou. ' + (q.erro || ''), { ms: 6000, acao: { rot: 'Ver', fn: function () { folhaItem(q); } } });
+      }
+      redesenhar();
+    }
+
+    function desenhar(v) { if (v === 'v-pessoal') desenharTopo(); else if (v === 'v-pes-ferias') desenharFerias(); else if (v === 'v-pes-faltas') desenharFaltas(); else if (v === 'v-pes-despesas') desenharDespesas(); else if (v === 'v-pes-form') desenharForm(); else if (v === 'v-pes-feito') desenharFeito(); else if (v === 'v-pes-desp-form') desenharDespForm(); }
     function redesenhar() {
       var v = K.vista(); if (!naVista() || K.A.vista() !== v) return;
-      if (v === 'v-pes-form') return;   // o formulário não se redesenha por fora (perdia o que se está a escrever)
+      if (v === 'v-pes-form' || v === 'v-pes-desp-form') return;   // os formulários não se redesenham por fora (perdiam o que se está a escrever)
       desenhar(v);
     }
     function aoSair() { clearTimeout(S.timer); S = estadoNovo(); }   // a cópia guardada apaga-a a casca (apagarCache), com as outras leituras
 
     return {
-      VISTAS: VISTAS, ROTULO: { 'v-pessoal': 'Pessoal', 'v-pes-ferias': 'Férias', 'v-pes-faltas': 'Faltas', 'v-pes-despesas': 'Despesas', 'v-pes-form': 'Pedido', 'v-pes-feito': 'Pessoal' },
-      TITULO: { 'v-pessoal': 'Pessoal', 'v-pes-ferias': 'Férias', 'v-pes-faltas': 'Faltas e ausências', 'v-pes-despesas': 'Despesas', 'v-pes-form': 'Pedido', 'v-pes-feito': 'Pessoal' },
-      titulo: function (v) { return v === 'v-pes-form' && S.form && AU ? tituloForm() : ''; },
+      VISTAS: VISTAS, ROTULO: { 'v-pessoal': 'Pessoal', 'v-pes-ferias': 'Férias', 'v-pes-faltas': 'Faltas', 'v-pes-despesas': 'Despesas', 'v-pes-form': 'Pedido', 'v-pes-feito': 'Pessoal', 'v-pes-desp-form': 'Despesa' },
+      TITULO: { 'v-pessoal': 'Pessoal', 'v-pes-ferias': 'Férias', 'v-pes-faltas': 'Faltas e ausências', 'v-pes-despesas': 'Despesas', 'v-pes-form': 'Pedido', 'v-pes-feito': 'Pessoal', 'v-pes-desp-form': 'Despesa' },
+      titulo: function (v) { if (v === 'v-pes-form' && S.form && AU) return tituloForm(); if (v === 'v-pes-desp-form' && S.dform) return S.dform.accao === 'corrigir' ? 'Corrigir despesa' : 'Registar despesa'; return ''; },
       ativo: ativo, recusado: recusado, ler: ler, desenhar: desenhar, redesenhar: redesenhar, aoSair: aoSair,
       aoMudarRede: function () { S.semLigacao = false; if (naVista()) { if (K.online()) ler(true); else redesenhar(); } },
       // F2: os pedidos (a casca chama-os: o «+», o drenar e o «Por enviar»)
       ausDisponivel: ausDisponivel, podeEscrever: podeEscrever, abrirPedir: abrirPedir, retido: retido,
       processar: processar, aoResultado: aoResultado, linhaFila: linhaFila,
       temForm: function () { return !!S.form; }, temFeito: function () { return !!S.feito; },
+      // F3: as despesas (a casca chama-as: o «+», o drenar e o «Por enviar»)
+      despDisponivel: despDisponivel, despPodeEscrever: despPodeEscrever, abrirDespesa: abrirDespesa, temDespForm: function () { return !!S.dform; },
       _estado: function () { return S; },
     };
   }

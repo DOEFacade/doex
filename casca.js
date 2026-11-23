@@ -259,7 +259,7 @@
   // ── Navegação: uma pilha de ecrãs, com o «voltar» do telemóvel (history) ──
   function ehCasca(v) { return v === 'v-hoje' || v === 'v-diario' || v === 'v-dia-envio' || v === 'v-diario7' || v === 'v-fila' || !!(TE && TE.VISTAS.indexOf(v) >= 0) || !!(BE && BE.VISTAS.indexOf(v) >= 0) || !!(PE && PE.VISTAS.indexOf(v) >= 0); }
   /** Um ecrã de formulário ou de «Registado» só volta (voltar, entrar outra vez) se ainda houver o que mostrar. */
-  function vistaViva(v) { return (v !== 'v-tf-form' || !!(TE && TE.temForm())) && (v !== 'v-tf-envio' || !!(TE && TE.temEnvio())) && (v !== 'v-bc-form' || !!(BE && BE.temForm())) && (v !== 'v-bc-envio' || !!(BE && BE.temEnvio())) && (!(PE && PE.VISTAS.indexOf(v) >= 0) || pessoalAtivo()) && (v !== 'v-pes-form' || !!(PE && PE.temForm())) && (v !== 'v-pes-feito' || !!(PE && PE.temFeito())); }
+  function vistaViva(v) { return (v !== 'v-tf-form' || !!(TE && TE.temForm())) && (v !== 'v-tf-envio' || !!(TE && TE.temEnvio())) && (v !== 'v-bc-form' || !!(BE && BE.temForm())) && (v !== 'v-bc-envio' || !!(BE && BE.temEnvio())) && (!(PE && PE.VISTAS.indexOf(v) >= 0) || pessoalAtivo()) && (v !== 'v-pes-form' || !!(PE && PE.temForm())) && (v !== 'v-pes-feito' || !!(PE && PE.temFeito())) && (v !== 'v-pes-desp-form' || !!(PE && PE.temDespForm && PE.temDespForm())); }
   function mostrar(v) {
     if (v !== c.vista) tirarToast();
     c.vista = v;
@@ -406,6 +406,8 @@
     if (TE && TE.disponivel()) ops.push(['tf', 'falta', 'Trabalho em falta', 'Foto, o que falta e onde']);
     if (BE && BE.disponivel()) ops.push(['bc', 'obra', 'Bloqueio do cliente', 'O que precisamos do cliente, foto e onde']);
     if (PE && quemVe().pessoal && PE.podeEscrever()) { ops.push(['pes-fer', 'cal', 'Pedir férias', 'Os dias úteis contam-se sozinhos']); ops.push(['pes-falta', 'falta', 'Falta ou ausência', 'Também teletrabalho, out of office e visitas a clientes']); }   // Pessoal, F2
+    var despOk = !!(PE && quemVe().pessoal && PE.despPodeEscrever && PE.despPodeEscrever());
+    if (despOk) ops.push(['pes-desp', 'etiqueta', 'Despesa', 'Valor, categoria e onde imputar']);   // Pessoal, F3
     folha({ titulo: 'Registar', corpo: function (cc) {
       ops.forEach(function (o) {
         var extra = null;
@@ -413,10 +415,10 @@
         if (o[0] === 'diario') { var e = estadoDiarioHoje(obraHoje()); if (!aceitaNovo(obraHoje(), hojeDia().dia) && !e.meu && !e.pend && !e.rascunho) extra = el('span', 'mv-rasc neu', 'Fechado'); else if (e.anulando) extra = el('span', 'mv-rasc', 'Anulado, por enviar'); else if (e.rascunho) extra = el('span', 'mv-rasc', 'Rascunho'); else if (e.pend) extra = el('span', 'mv-rasc', 'Por enviar'); else if (e.meu) extra = el('span', 'mv-rasc neu', 'Feito'); }
         if ((o[0] === 'tf' && TE.temRascunho()) || (o[0] === 'bc' && BE.temRascunho())) extra = el('span', 'mv-rasc', 'Rascunho');   // fecho da 2a: o «+» continua-o
         var b = linhaOp(o[1], o[2], o[3], extra); b.setAttribute('data-reg', o[0]);
-        b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pes-fer') PE.abrirPedir('FERIAS', { daFolha: true }); else if (o[0] === 'pes-falta') PE.abrirPedir('', { daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
+        b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pes-fer') PE.abrirPedir('FERIAS', { daFolha: true }); else if (o[0] === 'pes-falta') PE.abrirPedir('', { daFolha: true }); else if (o[0] === 'pes-desp') PE.abrirDespesa({ daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
         cc.appendChild(b);
       });
-      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ['material', 'entrega'], quemVe().pessoal ? ['despesa'] : []);   // a despesa é do Pessoal: a conta só de telemóvel não a tem (Pessoal, F0)
+      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ['material', 'entrega'], quemVe().pessoal && !despOk ? ['despesa'] : []);   // a despesa é do Pessoal: a conta só de telemóvel não a tem (Pessoal, F0)
       if (c.externa) emb = [];   // revisão da parte 4: uma conta externa não chega a nada da fatia 2 (contrato): não se lhe promete
       if (emb.length) cc.appendChild(el('p', 'mv-folha-txt mv-embreve-f', 'Em breve: ' + (emb.length > 1 ? emb.slice(0, -1).join(', ') + ' e ' : '') + emb[emb.length - 1] + '.'));
     } });
@@ -1606,7 +1608,7 @@
           par ? [] : [['atual', 'Tentar agora', function () { if (!A.sessaoValida()) { A.pedirLogin('Entra outra vez: o que tens por enviar segue logo a seguir.'); return; } drenar(true); }]], saiu ? null : function () { apagarDaFila(q); });
         return;
       }
-      if (q.tipo === 'tf' || q.tipo === 'bc' || q.tipo === 'aus') { var E = q.tipo === 'tf' ? TE : (q.tipo === 'bc' ? BE : PE); if (!E) return; var L = E.linhaFila(q, c.emCurso && c.atual === q.id); linha(L.ic, L.titulo, L.resumo, L.estado, L.cls, L.acoes, L.apagar ? function () { apagarDaFila(q); } : null); return; }   // os trabalhos em falta e os bloqueios do cliente (trabalhos-ecra.js, bloqueios-ecra.js)
+      if (q.tipo === 'tf' || q.tipo === 'bc' || q.tipo === 'aus' || q.tipo === 'desp') { var E = q.tipo === 'tf' ? TE : (q.tipo === 'bc' ? BE : PE); if (!E) return; var L = E.linhaFila(q, c.emCurso && c.atual === q.id); linha(L.ic, L.titulo, L.resumo, L.estado, L.cls, L.acoes, L.apagar ? function () { apagarDaFila(q); } : null); return; }   // os trabalhos em falta e os bloqueios do cliente (trabalhos-ecra.js, bloqueios-ecra.js)
       var o = obraDe(q.obraId), parado = q.estado === 'parado', emCurso = c.emCurso && c.atual === q.id;
       var est = parado ? (q.erro || 'Não entrou') : (emCurso ? 'A enviar…' : (!A.sessaoValida() ? 'À espera de entrares' : (!online() ? 'À espera de rede' : (q.erro || 'Na fila'))));
       var acoes;
@@ -1623,7 +1625,7 @@
   }
   function apagarDaFila(q) {
     c.fila = c.fila.filter(function (x) { return x !== q; }); c.apagar[q.id] = true; desenharFila(); desenharHojeSeVisivel();
-    toast(q.tipo === 'aus' ? 'Apagado · ' + (self.DoeMovelAus ? self.DoeMovelAus.tituloItem(q).toLowerCase() : 'pedido do Pessoal') : q.tipo === 'tf' ? 'Apagado · ' + (self.DoeMovelTf ? self.DoeMovelTf.tituloItem(q).toLowerCase() : 'trabalho em falta') : (q.tipo === 'bc' ? 'Apagado · ' + (self.DoeMovelBc ? self.DoeMovelBc.tituloItem(q).toLowerCase() : 'bloqueio do cliente') : (q.tipo === 'diario-cmd' ? 'Apagado · ' + D.resumoComandoDiario(q).toLowerCase() : 'Apagado · diário de ' + D.textoDiaMes(q.dia))), { desfazer: function () { delete c.apagar[q.id]; c.fila.push(q); desenharFila(); }, aoFim: function () { if (c.apagar[q.id]) { delete c.apagar[q.id]; apagarItem(q.id); } } });
+    toast(q.tipo === 'desp' ? 'Apagado · ' + (self.DoeMovelDesp ? self.DoeMovelDesp.tituloItem(q).toLowerCase() : 'despesa') : q.tipo === 'aus' ? 'Apagado · ' + (self.DoeMovelAus ? self.DoeMovelAus.tituloItem(q).toLowerCase() : 'pedido do Pessoal') : q.tipo === 'tf' ? 'Apagado · ' + (self.DoeMovelTf ? self.DoeMovelTf.tituloItem(q).toLowerCase() : 'trabalho em falta') : (q.tipo === 'bc' ? 'Apagado · ' + (self.DoeMovelBc ? self.DoeMovelBc.tituloItem(q).toLowerCase() : 'bloqueio do cliente') : (q.tipo === 'diario-cmd' ? 'Apagado · ' + D.resumoComandoDiario(q).toLowerCase() : 'Apagado · diário de ' + D.textoDiaMes(q.dia))), { desfazer: function () { delete c.apagar[q.id]; c.fila.push(q); desenharFila(); }, aoFim: function () { if (c.apagar[q.id]) { delete c.apagar[q.id]; apagarItem(q.id); } } });
   }
 
   // ── Conta ──
@@ -1705,6 +1707,7 @@
         var q = c.fila.filter(function (x) { return x.estado === 'a-enviar' && x.contaId === conta && !c.apagar[x.id] && !feitos[x.id] && !bloqueados[x.registoId] && !(x.adiadoAte && x.adiadoAte > agoraIso)   // adiadoAte: o comando com Desfazer só segue depois do aviso
           && !(x.tipo === 'tf' && !(TE && TE.disponivel())) && !(x.tipo === 'bc' && !(BE && BE.disponivel()))   // revisão da parte 4: sem a funcionalidade (Edge recuada), ficam; os diários seguem
           && !(x.tipo === 'aus' && (!(PE && PE.ausDisponivel()) || PE.retido(x)))   // Pessoal, F2: sem `ausencias` (Edge recuada) ficam; o que se está a mudar no formulário espera
+          && !(x.tipo === 'desp' && (!(PE && PE.despDisponivel && PE.despDisponivel()) || PE.retido(x)))   // Pessoal, F3: o mesmo com `despesas`
           // revisão (C1): só um DIÁRIO parado faz esperar o diário seguinte do mesmo registo; um comando decide-se pelo estado de agora
           && (x.tipo !== 'diario' || !c.fila.some(function (y) { return y !== x && y.tipo === 'diario' && y.registoId === x.registoId && y.estado === 'parado' && String(y.criadoEm) < String(x.criadoEm); }))
           // revisão (C2): no diário, nada passa à frente de um item adiado (com Desfazer) mais antigo do mesmo registo
@@ -1712,12 +1715,12 @@
         if (!q || contaId() !== conta) break;
         c.atual = q.id; desenharFilaSeVisivel();
         var tk = A.token();
-        var res = q.tipo === 'tf' ? (TE ? await TE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'bc' ? (BE ? await BE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'aus' ? (PE ? await PE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'diario-cmd' ? await D.processarComandoDiario(q, deps()) : await D.processarDiario(q, deps()))));
+        var res = q.tipo === 'tf' ? (TE ? await TE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'bc' ? (BE ? await BE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'aus' || q.tipo === 'desp' ? (PE ? await PE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'diario-cmd' ? await D.processarComandoDiario(q, deps()) : await D.processarDiario(q, deps()))));
         c.atual = '';
         if (res.estado === 'login' && res.revogado && A.token() && A.token() !== tk && repete < 2) { repete++; continue; }   // B2: a palavra-passe mudou a meio: repete com o token novo
         if (q.tipo === 'tf') { if (TE) await TE.aoResultado(q, res); if (BE) BE.aoTrabalho(q, res); }   // um trabalho desbloqueado sai do bloqueio do cliente
         else if (q.tipo === 'bc') { if (BE) await BE.aoResultado(q, res); }
-        else if (q.tipo === 'aus') { if (PE) await PE.aoResultado(q, res); }   // Pessoal, F2
+        else if (q.tipo === 'aus' || q.tipo === 'desp') { if (PE) await PE.aoResultado(q, res); }   // Pessoal, F2 e F3
         else if (q.tipo === 'diario-cmd') await aoComandoDiario(q, res);   // anular e tirar uma foto (13 nov 2026)
         else if (c.envio && c.envio.item.id === q.id) {
           c.envio.fase = res.estado === 'entregue' ? 'feito' : (res.estado === 'parar' || res.estado === 'corrigir' ? 'parado' : 'guardado');
@@ -1726,7 +1729,7 @@
         } else if (res.estado === 'entregue') toast('Diário de ' + D.textoDiaMes(q.dia) + (obraDe(q.obraId) ? ' · ' + obraDe(q.obraId).codigo : '') + ': enviado', { ms: 3500 });
         if (res.estado === 'entregue') { c.fila = c.fila.filter(function (x) { return x !== q; }); apagarItem(q.id); c.tentativas = 0; continue; }
         if (res.estado === 'login') { parou = 'login'; talvezLogin({ accao: 'login', texto: res.mensagem, revogado: res.revogado }); break; }
-        if (res.estado === 'pendente') { feitos[q.id] = true; if (q.tipo !== 'diario-cmd') bloqueados[q.registoId] = true; q.erro = res.rede ? '' : (res.mensagem || ''); guardarItem(q); if (res.rede || (res.longo && !res.contrato && q.tipo !== 'tf' && q.tipo !== 'bc' && q.tipo !== 'aus' && q.tipo !== 'diario-cmd')) { parou = res; break; } parou = parou || res; continue; }   // rede: os outros também falhavam; senão segue para o próximo (um trabalho ou bloqueio com o servidor por preparar ou recuado não prende os diários)
+        if (res.estado === 'pendente') { feitos[q.id] = true; if (q.tipo !== 'diario-cmd') bloqueados[q.registoId] = true; q.erro = res.rede ? '' : (res.mensagem || ''); guardarItem(q); if (res.rede || (res.longo && !res.contrato && q.tipo !== 'tf' && q.tipo !== 'bc' && q.tipo !== 'aus' && q.tipo !== 'desp' && q.tipo !== 'diario-cmd')) { parou = res; break; } parou = parou || res; continue; }   // rede: os outros também falhavam; senão segue para o próximo (um trabalho ou bloqueio com o servidor por preparar ou recuado não prende os diários)
         feitos[q.id] = true; if (q.tipo === 'diario') bloqueados[q.registoId] = true;   // parado (dia fechado, obra, recusa): fica com o motivo e segue (os outros registos; num trabalho ou bloqueio, também os seguintes dele)
       }
     } finally { c.emCurso = false; c.atual = ''; }
@@ -1781,7 +1784,7 @@
       if (!r) return;
       if (r.tipo === 'diario-rascunho') { if (!r.mexidos || String(r.dia) < limiteRasc) { apagarItem(r.id); return; } c.rascunhos[r.id] = r; return; }   // mais de 7 dias (ou do formato antigo): sai, com as fotos
       if (r.tipo === 'tf-rascunho' || r.tipo === 'bc-rascunho') { rascF.push(r); return; }   // os dos formulários (fecho da 2a): ficam com os ecrãs deles
-      if (r.tipo !== 'diario' && r.tipo !== 'diario-cmd' && r.tipo !== 'tf' && r.tipo !== 'bc' && r.tipo !== 'aus') return;   // 'diario-cmd': anular e tirar uma foto do diário (13 nov 2026); 'aus': os pedidos de férias e faltas (Pessoal, F2, 17 nov 2026)   // (numa base partilhada, como a dos testes, há também as ocorrências: não são daqui; 'tf' = os trabalhos em falta, 'bc' = os bloqueios do cliente)
+      if (r.tipo !== 'diario' && r.tipo !== 'diario-cmd' && r.tipo !== 'tf' && r.tipo !== 'bc' && r.tipo !== 'aus' && r.tipo !== 'desp') return;   // 'diario-cmd': anular e tirar uma foto do diário (13 nov 2026); 'aus': os pedidos de férias e faltas (Pessoal, F2, 17 nov 2026); 'desp': as despesas (Pessoal, F3, 23 nov 2026)   // (numa base partilhada, como a dos testes, há também as ocorrências: não são daqui; 'tf' = os trabalhos em falta, 'bc' = os bloqueios do cliente)
       if (r.estado === 'entregue') { apagarItem(r.id); return; }
       c.fila.push(r);
     });

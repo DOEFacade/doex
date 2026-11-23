@@ -114,6 +114,8 @@
     <!-- Pessoal, F2 (17 nov 2026): pedir, corrigir e cancelar férias e faltas (pessoal-ecra.js, ausencias.js) -->
     <section id="v-pes-form" class="mv-pes-sub mv-pes-form" hidden aria-label="Pedido de ausência"></section>
     <section id="v-pes-feito" class="mv-env" hidden aria-labelledby="pes-e-titulo"></section>
+    <!-- Pessoal, F3 (23 nov 2026): registar e corrigir uma despesa (pessoal-ecra.js, despesas.js) -->
+    <section id="v-pes-desp-form" class="mv-pes-sub mv-pes-form" hidden aria-label="Despesa"></section>
 
     <!-- Envio: a enviar, registada, recebida, guardada no telemóvel, não foi enviada -->
     <section id="v-envio" class="mv-env" hidden aria-labelledby="e-titulo">
@@ -153,6 +155,7 @@
     <div class="mv-barra-in mv-btns" id="barra-bc-env" hidden></div>
     <div class="mv-barra-in" id="barra-pes" hidden></div>
     <div class="mv-barra-in mv-btns" id="barra-pes-feito" hidden></div>
+    <div class="mv-barra-in" id="barra-pes-desp" hidden></div>
   </footer>
   <!-- A barra de destinos (Hoje · Tarefas · + · Pessoal · Conta; a conta só de telemóvel: Hoje · + · Conta; a externa: Hoje · Tarefas · + · Conta): desenhada pela casca -->
   <nav class="mv-nav cinco" id="nav" aria-label="Destinos" hidden></nav>
@@ -217,6 +220,7 @@
 <script src="hoje.js"></script>
 <script src="pessoal.js"></script>
 <script src="ausencias.js"></script>
+<script src="despesas.js"></script>
 <script src="trabalhos.js"></script>
 <script src="trabalhos-ecra.js"></script>
 <script src="bloqueios.js"></script>
