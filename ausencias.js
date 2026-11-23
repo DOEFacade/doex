@@ -354,22 +354,40 @@
   async function processar(item, deps) {
     if (deps.contaId && item.contaId && item.contaId !== deps.contaId()) return { estado: 'alheio', mensagem: 'Isto é de ' + (item.contaNome || 'outra conta') + '; só essa conta o pode enviar.' };
     if (deps.online && deps.online() === false) return { estado: 'pendente', rede: true, mensagem: D.mensagemDiario({ rede: true, online: false }).texto };
+    // «tentou» fica: uma falha de rede DEPOIS de sair não prova que o pedido não chegou (revisão da F2, e3: o
+    // navigator.onLine a falso no catch não diz se o servidor gravou). Daí em diante só se repete com o MESMO pedidoId.
     item.tentou = true; await deps.guardar(item);
     var x = await D.pedir(deps, 'POST', ROTA, corpoComando(item));
-    if (!x.ok && x.rede && x.online === false) item.tentou = false;   // não saiu do telemóvel
-    if (x.ok) {
-      var dt = x.data || {};
+    // Um pedir cujo registo já existe no servidor com outro conteúdo (a resposta do 1.º envio perdeu-se e a pessoa mudou-o
+    // depois): o servidor devolve o que lá está, como `repetido` ou num 409 com `details.registo`. Fica o do servidor e diz-se.
+    var jaLa = item.accao === 'pedir' && !x.ok && x.status === 409 && x.details && x.details.registo && x.details.registo.id === item.registoId ? x.details.registo : null;
+    if (x.ok || jaLa) {
+      var dt = jaLa ? { registo: jaLa, repetido: true, versao: jaLa.versao, avisos: [] } : (x.data || {});
       item.resposta = { versao: dt.versao || (dt.registo && dt.registo.versao) || '', repetido: !!dt.repetido };
       item.registo = dt.registo || null; item.avisos = lista(dt.avisos).map(textoAviso).filter(Boolean);
+      item.jaEntrou = item.accao === 'pedir' && !!dt.repetido && !!item.registo && !mesmoPedido(item.campos, item.registo);
+      if (item.jaEntrou) item.avisos.unshift(textoJaEntrou(item.registo));
       item.estado = 'entregue'; item.erro = ''; item.code = ''; item.details = null;
       await deps.guardar(item);
-      return { estado: 'entregue', registo: item.registo, avisos: item.avisos };
+      return { estado: 'entregue', registo: item.registo, avisos: item.avisos, jaEntrou: item.jaEntrou };
     }
     var m = mensagem(x, item);
     if (m.accao === 'parar') { item.estado = 'parado'; item.erro = m.texto; item.code = m.code || ''; item.details = m.details || null; item.mudar = !!m.mudar; item.confirmar = !!m.confirmar; await deps.guardar(item); return { estado: 'parar', mensagem: m.texto, code: m.code }; }
     if (m.accao === 'login') { await deps.guardar(item); return { estado: 'login', mensagem: m.texto, revogado: !!m.revogado }; }
     item.erro = m.rede ? '' : (m.texto || ''); await deps.guardar(item);
     return { estado: 'pendente', mensagem: m.texto, rede: !!m.rede, retryAfter: m.retryAfter || 0, longo: !!m.longo, recuada: !!m.recuada };
+  }
+  /** O registo do servidor é o que este pedido mandou? (o tipo, as datas, as horas e a nota) */
+  function mesmoPedido(c, r) {
+    c = c || {};
+    if (!r) return true;
+    var compl = c.horasCompleto !== false, rc = r.horasCompleto !== false;
+    return r.tipo === c.tipo && r.inicio === c.inicio && r.fim === c.fim && rc === compl
+      && (compl || (r.horaInicio === c.horaInicio && r.horaFim === c.horaFim)) && String(r.nota || '') === String(c.nota || '').trim();
+  }
+  function textoJaEntrou(r) {
+    var t = cfg(r.tipo);
+    return 'Este pedido já tinha entrado antes, como ' + (t.ferias ? 'férias' : String(t.l || '').toLowerCase()) + ' de ' + P.intervalo(r.inicio, r.fim) + ': ficou o que está no servidor. O que mudaste não foi aplicado; corrige o pedido se for preciso.';
   }
   /** Os avisos de uma resposta ({ campo, motivo, valor? }): campos ignorados pelo servidor. Só o que a pessoa precisa de saber. */
   function textoAviso(a) {
@@ -384,6 +402,7 @@
       «Tentar outra vez» de um cancelar que mudou): um pedidoId NOVO (é outra intenção), a versao de agora. */
   function reenviar(q, o) {
     o = o || {};
+    if (q.tentou && q.estado !== 'parado') return null;   // já saiu sem resposta: pode ter entrado; só se repete com o mesmo pedidoId
     q.estado = 'a-enviar'; q.erro = ''; q.code = ''; q.details = null; q.mudar = false; q.confirmar = false; q.tentou = false; q.resposta = null; q.registo = null;
     q.pedidoId = novoPedidoId(o.novoId);
     if (o.campos) { q.campos = o.campos; q.resumo = resumoCurto(q.campos); }
@@ -415,6 +434,6 @@
     chocam: chocam, sobreposicao: sobreposicao, excesso: excesso, livresDepois: livresDepois, foraDoAno: foraDoAno, resumoOO: resumoOO, motivoDe: motivoDe,
     itemComando: itemComando, corpoComando: corpoComando, registoProvisorio: registoProvisorio, aplicarLocal: aplicarLocal, meus: meus,
     comPendentes: comPendentes, porRegisto: porRegisto, aplicarResposta: aplicarResposta, saldoAjustado: saldoAjustado, mensagem: mensagem, textoSobreposicao: textoSobreposicao, processar: processar, reenviar: reenviar,
-    tituloItem: tituloItem, resumoItem: resumoItem, textoAviso: textoAviso,
+    tituloItem: tituloItem, resumoItem: resumoItem, textoAviso: textoAviso, mesmoPedido: mesmoPedido,
   };
 }));

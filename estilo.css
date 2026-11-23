@@ -96,7 +96,7 @@
   }
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: var(--e8); scroll-padding-bottom: calc(var(--mv-barra-h) + var(--mv-tecl) + var(--e2)); }
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: var(--e8); scroll-padding-bottom: calc(var(--mv-barra-h) + var(--mv-tecl) + var(--e2)); }
 body {
   margin: 0; background: var(--fundo); color: var(--tinta); font: var(--mv-fs-txt)/1.45 var(--f-sans);
   -webkit-font-smoothing: antialiased; min-height: 100vh; min-height: 100dvh;

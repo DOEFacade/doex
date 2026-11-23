@@ -463,7 +463,8 @@
     /** Um comando que já estava na fila (o «Mudar» de um que não entrou, ou de um que ainda não saiu), outra vez a seguir. */
     function reporComando(q, o, texto) {
       var antes = JSON.parse(JSON.stringify(q));
-      AU.reenviar(q, Object.assign({ novoId: K.novoId, adiarMs: ADIAR }, o)); K.guardarItem(q); redesenhar();
+      if (!AU.reenviar(q, Object.assign({ novoId: K.novoId, adiarMs: ADIAR }, o))) { K.toast('Este pedido pode já ter seguido: espera pela resposta do servidor antes de o mudar.', { ms: 6000 }); return false; }
+      K.guardarItem(q); redesenhar();
       K.toast(texto + (K.online() ? '' : ' · segue quando houver rede'), { ms: ADIAR, itemId: q.id,
         desfazer: function () { Object.keys(q).forEach(function (k) { delete q[k]; }); Object.assign(q, antes); K.guardarItem(q); redesenhar(); },
         aoFim: function () { if (K.fila().indexOf(q) < 0) return; q.adiadoAte = ''; K.guardarItem(q); redesenhar(); K.drenar(false); } });
@@ -605,7 +606,7 @@
       });
       erroForm(v);
     }
-    function obrasOO(d) { return ((d && d.obras) || []).filter(function (o) { return o.estado !== 'PAUSED'; }); }
+    function obrasOO(d) { return ((d && d.obras) || []).filter(function (o) { return o.estado === 'ACTIVE'; }); }   // o servidor só aceita obras com status ACTIVE (vacationOutOfficeObraOptions do computador)
     function faltaDados(v, f, d) {
       var t = AU.cfg(f.tipo), raw = f.id ? registoBase(f.id) : null, nD = AU.corridos(f.inicio, f.fim) || 1;
       cabecalhoPasso(v, f, f.accao === 'corrigir' ? t.l : 'Dias e detalhe', f.accao === 'corrigir' && raw ? P.intervalo(raw.inicio, raw.fim) : t.l);
@@ -817,11 +818,13 @@
     function desenharFeito() {
       var v = $('v-pes-feito'); if (!v || !S.feito || !AU) return;
       limpar(v);
-      var x = S.feito, f = x.form, c = AU.cfg(f.tipo), fase = faseFeito(), q = itemDaFila(x.itemId), d = dadosVista(), ch = d && d.chefia, fer = feriados();
+      // depois de entregue, o que se mostra é o registo do SERVIDOR (revisão da F2: um pedido que já tinha entrado com outras
+      // datas devolve as de lá, e o formulário que não foi aplicado nunca aparece como se tivesse sido)
+      var x = S.feito, r0 = x.registo, f = r0 ? { tipo: r0.tipo, inicio: r0.inicio, fim: r0.fim, anexo: r0.anexo } : x.form, c = AU.cfg(f.tipo), fase = faseFeito(), q = itemDaFila(x.itemId), d = dadosVista(), ch = d && d.chefia, fer = feriados();
       var selo = el('div', 'mv-selo' + (fase === 'parado' ? ' neg' : (fase === 'feito' ? '' : (fase === 'guardado' ? ' ama' : ' nav')))); selo.setAttribute('aria-hidden', 'true');
       selo.appendChild(ic(fase === 'parado' ? 'alerta' : (fase === 'feito' ? 'ok' : (fase === 'guardado' ? 'subir' : 'enviar'))));
       v.appendChild(selo);
-      var titulo = fase === 'parado' ? 'Não foi aceite' : (fase === 'guardado' ? 'Guardado' : (fase === 'feito' ? (c.ferias ? 'Pedido enviado' : (c.presenca ? 'Registado' : 'Enviada ao RH')) : 'A enviar…'));
+      var titulo = fase === 'parado' ? 'Não foi aceite' : (fase === 'guardado' ? 'Guardado' : (fase === 'feito' ? (x.jaEntrou ? 'Já tinha entrado' : (c.ferias ? 'Pedido enviado' : (c.presenca ? 'Registado' : 'Enviada ao RH'))) : 'A enviar…'));
       var est = el('div', 'mv-env-estado'); est.setAttribute('aria-live', 'polite'); est.setAttribute('aria-atomic', 'true');
       var h = el('h1', 'mv-env-t', titulo); h.id = 'pes-e-titulo'; h.tabIndex = -1; h.setAttribute('data-foco-inicial', ''); est.appendChild(h);
       var o = c.ferias ? AU.uteis(f.inicio, f.fim, fer) : AU.corridos(f.inicio, f.fim);
@@ -831,6 +834,7 @@
       est.appendChild(el('p', 'mv-env-s', sub));
       v.appendChild(est);
       if (fase === 'parado' && q) v.appendChild(faixa('neg', 'alerta', q.erro || 'Não entrou', 'O motivo do servidor'));
+      if (fase === 'feito' && x.jaEntrou && x.aviso) v.appendChild(faixa('ama', 'alerta', x.aviso));
       if (fase === 'feito' || fase === 'guardado' || fase === 'desfazer') v.appendChild(el('p', 'mv-pes-nota', 'Para levar a assinar: a «Comunicação de Faltas e Férias» imprime-se no computador (Eu › Assiduidade › Imprimir Folha).'));
       var bb = $('barra-pes-feito'); if (bb) {
         limpar(bb);
@@ -900,8 +904,8 @@
       var noFeito = S.feito && S.feito.itemId === q.id && K.vista() === 'v-pes-feito';
       if (res.estado === 'entregue' && q.registo) {
         atualizarCopia(q.registo);
-        if (S.feito && S.feito.itemId === q.id) { S.feito.entregue = true; S.feito.registo = q.registo; }
-        if (!noFeito) K.toast(AU.tituloItem(q) + ': enviado', { ms: 3500 });
+        if (S.feito && S.feito.itemId === q.id) { S.feito.entregue = true; S.feito.registo = q.registo; S.feito.jaEntrou = !!q.jaEntrou; S.feito.aviso = (q.avisos || [])[0] || ''; }
+        if (!noFeito) K.toast(q.jaEntrou ? (q.avisos || [])[0] : AU.tituloItem(q) + ': enviado', { ms: q.jaEntrou ? 8000 : 3500 });
       }
       if (res.estado === 'parar') {
         if (q.code === 'MUDOU' && q.details && q.details.registo) atualizarCopia(q.details.registo);   // o registo de agora: é sobre ele que se decide outra vez
