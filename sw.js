@@ -10,7 +10,7 @@
    VERSAO = resumo dos 25 ficheiros acima (movel/versao.js). Mudar um ficheiro da página SEM subir a versão faz o
    teste falhar: sem isso os telemóveis ficavam com a página velha. Sobe-se com: node movel/versao.js --escrever */
 'use strict';
-var VERSAO = '43a55549d3a6';
+var VERSAO = 'a679a217915f';
 var PREFIXO = 'doe-movel-';
 // 14 nov 2026 (o repositório passa a `doex`): a app antiga (/doe-ocorrencias/) e a doex (/doex/) vivem na MESMA origem e,
 // com a mesma versão, partilhavam a cache. Agora o nome leva o âmbito; as caches antigas sem âmbito (`doe-movel-<versão>`)

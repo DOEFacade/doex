@@ -194,7 +194,7 @@
   // ── Vistas, cabeçalho e progresso ──
   // As vistas: as da ocorrência (login, registo, envio) e as da casca (casca.js). Cada uma diz que barra tem em baixo:
   // a do formulário (por cima da barra de destinos, com «‹ Hoje» no cabeçalho) ou, no Hoje, a barra de destinos.
-  var VISTAS = ['v-login', 'v-registo', 'v-envio', 'v-hoje', 'v-diario', 'v-dia-envio', 'v-diario7', 'v-fila', 'v-tf', 'v-tf-form', 'v-tf-envio', 'v-bc', 'v-bc-form', 'v-bc-envio', 'v-pessoal', 'v-pes-ferias', 'v-pes-faltas', 'v-pes-despesas', 'v-pes-form', 'v-pes-feito', 'v-pes-desp-form'];   // + o Pessoal (pessoal-ecra.js, F1; o pedido e o «Feito» da F2; o formulário das despesas da F3)
+  var VISTAS = ['v-login', 'v-registo', 'v-envio', 'v-hoje', 'v-diario', 'v-dia-envio', 'v-diario7', 'v-fila', 'v-tf', 'v-tf-form', 'v-tf-envio', 'v-bc', 'v-bc-form', 'v-bc-envio', 'v-pessoal', 'v-pes-ferias', 'v-pes-faltas', 'v-pes-despesas', 'v-pes-form', 'v-pes-feito', 'v-pes-desp-form', 'v-obras', 'v-conta', 'v-obra-ler'];   // + o Pessoal (pessoal-ecra.js, F1; o pedido e o «Feito» da F2; o formulário das despesas da F3); Obras e Conta (casca.js, 24 nov 2026)
   var BARRA_DE = { 'v-registo': 'barra-reg', 'v-envio': 'barra-env', 'v-diario': 'barra-dia', 'v-dia-envio': 'barra-dia-env', 'v-diario7': 'barra-d7', 'v-tf-form': 'barra-tf', 'v-tf-envio': 'barra-tf-env', 'v-bc-form': 'barra-bc', 'v-bc-envio': 'barra-bc-env', 'v-pes-form': 'barra-pes', 'v-pes-feito': 'barra-pes-feito', 'v-pes-desp-form': 'barra-pes-desp' };   // v-tf e v-bc (as listas) não têm barra em baixo
   function ir(vista) {
     var mudou = est.vista !== vista;
@@ -203,7 +203,7 @@
     document.documentElement.classList.toggle('mv-em-login', vista === 'v-login');
     document.documentElement.classList.toggle('mv-casca', !!(C && C.ehCasca(vista)));
     if (mudou) { desenharFaixaRede(); desenharDica(); }
-    var destino = vista === 'v-hoje' || vista === 'v-pessoal';   // os destinos da barra (o Hoje e, desde o Pessoal F1, o Pessoal): sem cabeçalho, com a barra de destinos
+    var destino = !!(C && C.destino(vista));   // os destinos da barra (Hoje, Obras, Pessoal ou Conta; casca.js): sem cabeçalho, com a barra de destinos
     $('cab').hidden = vista === 'v-login' || destino;
     $('prog').hidden = vista !== 'v-registo';
     $('barra').hidden = !BARRA_DE[vista];
@@ -552,14 +552,26 @@
       if (ev.key === 'Escape' && folhaAberta && typeof folhaAberta.showModal !== 'function') { ev.preventDefault(); fecharFolha(folhaAberta); }
     });
   }
-  function abrirConta(preencher) {
+  // O corpo da conta (#conta-corpo) é um só: com a casca vive no fim do Pessoal (ou no ecrã Conta); a folha só o mostra na
+  // página sem a casca (o círculo do cabeçalho), e ao abri-la trá-lo de volta. Preenche-se pela referência (pode estar a
+  // meio de uma mudança de sítio).
+  var contaCorpoEl = null;
+  function contaCorpo() { if (!contaCorpoEl) contaCorpoEl = $('conta-corpo'); return contaCorpoEl; }
+  function preencherConta() {
+    var s = est.sessao, cc = contaCorpo(); if (!s || !cc) return cc;
+    var q = function (id) { return cc.querySelector('#' + id); };
+    q('fc-ini').textContent = M.iniciais(s.nome) || '·';
+    q('fc-nome').textContent = s.nome || 'A tua conta';
+    q('fc-sessao').textContent = sessaoValida() ? 'Sessão neste telemóvel até ' + M.textoDia(s.expiraEm) : 'A sessão expirou: ao enviar, entra outra vez';
+    q('fc-versao').textContent = est.versaoPag ? 'DOEX · versão ' + est.versaoPag : ''; q('fc-versao').hidden = !est.versaoPag;   // sem a versão (ainda sem resposta do service worker) não se mostra «—»
+    return cc;
+  }
+  function abrirConta(preencher, depois) {   // depois(): onde volta o foco ao fechar (a casca procura o botão de agora, pelo data-k)
     var s = est.sessao; if (!s) return;
-    $('fc-ini').textContent = M.iniciais(s.nome) || '·';
-    $('fc-nome').textContent = s.nome || 'A tua conta';
-    $('fc-sessao').textContent = sessaoValida() ? 'Sessão neste telemóvel até ' + M.textoDia(s.expiraEm) : 'A sessão expirou: ao enviar, entra outra vez';
-    $('fc-versao').textContent = 'DOEX · versão ' + (est.versaoPag || '—');
+    var cc = preencherConta(), lugar = $('fc-lugar');
+    if (cc && lugar && cc.parentNode !== lugar) lugar.appendChild(cc);
     if (typeof preencher === 'function') preencher($('fc-ops'));
-    abrirFolha($('folha-conta'), $('fc-t'));
+    abrirFolha($('folha-conta'), $('fc-t'), typeof depois === 'function' ? depois : null);
   }
 
   // ── Fotos: compressão no telemóvel (o canvas retira o EXIF/GPS) ──
@@ -998,6 +1010,7 @@
       ocorrenciasPorEnviar: function () { return { pend: listaPendentes().filter(function (r) { return M.ehDaConta(r, contaAtual()); }), alheios: est.alheios.slice(), rascunho: est.rasc && est.rasc.estado === 'rascunho' && !M.rascunhoVazio(est.rasc) ? est.rasc : null }; },
       pedirLogin: pedirLogin, sairCom: function (nota) { sair(nota); },
       abrirFolha: abrirFolha, fecharFolha: fecharFolha, fecharFolhas: fecharFolhas, abrirConta: abrirConta,
+      contaCorpo: preencherConta,   // o corpo da conta, preenchido (nome, sessão, versão): a casca põe-no no fim do Pessoal ou no ecrã Conta
       guardarRegisto: guardar, apagarRegisto: apagar,
       comprimir: function (file) { return comPrazo(comprimir(file), M.LIMITES.msPrepararFoto); },
       trocarToken: function (token, expiraEm) { if (!est.sessao || !token) return; est.sessao.token = String(token); if (expiraEm) est.sessao.expiraEm = String(expiraEm); lsGravar(LS_SESSAO, JSON.stringify(est.sessao)); },
@@ -1174,7 +1187,7 @@
     var pedirVersao = function () { try { if (nav.controller) nav.controller.postMessage('versao'); } catch (e) { /* sem resposta: fica «DOE Facade» */ } };
     nav.addEventListener('message', function (ev) {
       var v = ev && ev.data && ev.data.versao;
-      if (typeof v === 'string' && /^[0-9a-f]{6,}$/.test(v)) { est.versaoPag = v.slice(0, 8); var p = $('versao-pag'); p.textContent = 'DOE Facade · versão da página '; p.appendChild(el('code', null, v.slice(0, 8))); }
+      if (typeof v === 'string' && /^[0-9a-f]{6,}$/.test(v)) { est.versaoPag = v.slice(0, 8); var fv = contaCorpo() && contaCorpo().querySelector('#fc-versao'); if (fv) { fv.textContent = 'DOEX · versão ' + est.versaoPag; fv.hidden = false; } var p = $('versao-pag'); p.textContent = 'DOE Facade · versão da página '; p.appendChild(el('code', null, v.slice(0, 8))); }
     });
     nav.addEventListener('controllerchange', function () { if (est.recarregar) location.reload(); else pedirVersao(); });
     pedirVersao();

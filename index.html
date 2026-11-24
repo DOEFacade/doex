@@ -116,6 +116,12 @@
     <section id="v-pes-feito" class="mv-env" hidden aria-labelledby="pes-e-titulo"></section>
     <!-- Pessoal, F3 (23 nov 2026): registar e corrigir uma despesa (pessoal-ecra.js, despesas.js) -->
     <section id="v-pes-desp-form" class="mv-pes-sub mv-pes-form" hidden aria-label="Despesa"></section>
+    <!-- Obras e a Conta (24 nov 2026, protótipo DOEX-Movel-Pessoal-Conta-Fundidos-Prototipo.html): a lista das minhas obras
+         (tocar abre o Hoje dessa obra) e, para quem não tem Pessoal, a Conta como ecrã (com Pessoal, a conta vive no fim dele) -->
+    <section id="v-obras" class="mv-pes" hidden aria-labelledby="ob-h1"></section>
+    <section id="v-conta" class="mv-pes" hidden aria-labelledby="ct-h1"></section>
+    <!-- Uma obra que não é das minhas, só para ler (revisão de 48b0111b): não muda a obra do Hoje nem a do «+» -->
+    <section id="v-obra-ler" class="mv-pes-sub" hidden aria-label="Obra, só para ler"></section>
 
     <!-- Envio: a enviar, registada, recebida, guardada no telemóvel, não foi enviada -->
     <section id="v-envio" class="mv-env" hidden aria-labelledby="e-titulo">
@@ -157,7 +163,7 @@
     <div class="mv-barra-in mv-btns" id="barra-pes-feito" hidden></div>
     <div class="mv-barra-in" id="barra-pes-desp" hidden></div>
   </footer>
-  <!-- A barra de destinos (Hoje · Tarefas · + · Pessoal · Conta; a conta só de telemóvel: Hoje · + · Conta; a externa: Hoje · Tarefas · + · Conta): desenhada pela casca -->
+  <!-- A barra de destinos (Hoje · Tarefas · + · Obras · Pessoal; sem Pessoal, o último é a Conta: a conta só de telemóvel Hoje · + · Obras · Conta, a externa Hoje · Tarefas · + · Obras · Conta): desenhada pela casca -->
   <nav class="mv-nav cinco" id="nav" aria-label="Destinos" hidden></nav>
   <div id="toast" class="mv-toast" role="status" aria-live="polite" hidden></div>
   <input type="file" id="d-cam" accept="image/*" capture="environment" class="oculto" tabindex="-1" aria-hidden="true">
@@ -192,13 +198,21 @@
 <dialog class="mv-folha" id="folha-conta" aria-labelledby="fc-t">
   <div class="mv-folha-in">
     <div class="mv-pega" aria-hidden="true"></div>
-    <div class="mv-folha-h"><span class="mv-folha-ht"><h2 id="fc-t" tabindex="-1">Conta</h2></span><button type="button" class="mv-icb" data-fechar aria-label="Fechar"><span data-ic="x"></span></button></div>
-    <div class="mv-folha-c">
-      <div class="mv-conta"><span class="mv-av-g" id="fc-ini" aria-hidden="true"></span><span><b id="fc-nome"></b><small id="fc-papel" hidden></small><small id="fc-sessao"></small></span></div>
-      <div id="fc-ops"></div>
-      <p class="mv-conta-nota">Ao sair, o que ficou por enviar continua guardado neste telemóvel, na tua conta.</p>
+    <div class="mv-folha-h"><span class="mv-folha-ht"><h2 id="fc-t" tabindex="-1">A minha conta</h2></span><button type="button" class="mv-icb" data-fechar aria-label="Fechar"><span data-ic="x"></span></button></div>
+    <!-- O corpo da conta é UM só (24 nov 2026): com a casca vive no fim do Pessoal (ou no ecrã Conta) e a casca muda-o para
+         lá; a folha só o mostra na página sem a casca (o círculo do cabeçalho) e app.js trá-lo de volta ao abri-la -->
+    <div class="mv-folha-c" id="fc-lugar">
+      <!-- Redesenho do Pessoal (24 nov 2026, direcção A): o nome uma vez, as linhas da conta, «Perdeste um telemóvel?» recolhido,
+           Sair longe do Desligar e com o mesmo peso das outras linhas, a versão só quando se sabe -->
+      <div id="conta-corpo">
+        <div class="mv-conta"><span class="mv-av-g" id="fc-ini" aria-hidden="true"></span><span><b id="fc-nome"></b><small id="fc-papel" hidden></small><small id="fc-sessao"></small></span></div>
+        <div id="fc-ops" class="mv-conta-ops"></div>
+        <button type="button" class="mv-conta-mais" id="fc-seg" aria-expanded="false" aria-controls="fc-perdi" hidden>Perdeste um telemóvel?</button>
+        <p class="mv-folha-txt mv-conta-perdi" id="fc-perdi" hidden>Toca em «Desligar os meus telemóveis» (ou muda a palavra-passe): corta o acesso em todos.</p>
+        <button type="button" class="mv-op mv-conta-sair" id="sair" data-k="conta-sair"><span class="mv-obra-ic"><span data-ic="sair"></span></span><span class="mv-op-t"><span class="mv-op-l">Sair</span><span class="mv-op-d mv-conta-nota">Ao sair, o que ficou por enviar continua guardado neste telemóvel, na tua conta.</span></span></button>
+        <p class="mv-conta-v" id="fc-versao" hidden></p>
+      </div>
     </div>
-    <div class="mv-folha-p"><button type="button" class="mv-btn" id="sair"><span data-ic="sair"></span>Sair</button><p class="mv-conta-v" id="fc-versao"></p></div>
   </div>
 </dialog>
 

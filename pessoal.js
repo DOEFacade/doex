@@ -142,7 +142,7 @@
     var goz = Math.max(num(s.gozados), 0), mar = Math.max(num(s.marcados), 0), pen = Math.max(num(s.pendentes), 0), liv = Math.max(num(s.livres), 0);
     var tot = Math.max(num(s.direito), goz + mar + pen, 1), pc = function (n) { return Math.round(n / tot * 1000) / 10; };
     return { goz: pc(goz), mar: pc(mar), pen: pc(pen), n: { goz: goz, mar: mar, pen: pen, liv: liv },
-      aria: goz + ' gozados, ' + mar + ' marcados e ainda por gozar, ' + pen + ' pendentes, ' + liv + ' livres' };
+      aria: pl(goz, 'gozado', 'gozados') + ', ' + pl(mar, 'marcado', 'marcados') + ' e ainda por gozar, ' + pl(pen, 'pendente', 'pendentes') + ', ' + pl(liv, 'livre', 'livres') };   // plurais certos (revisão de 029ccb2a)
   }
   function resumoSaldo(d) {
     var s = d.saldo || {}, por = num(s.porMarcar), pen = num(s.pendentes), liv = num(s.livres);
@@ -269,7 +269,7 @@
     paraGuardar: paraGuardar, deGuardado: deGuardado, tocaMes: tocaMes,
     intervalo: intervalo, eur: eur, quando: quando, daCopia: daCopia,
     ehFerias: ehFerias, presenca: presenca, estadoAusencia: estadoAusencia, etapaTexto: etapaTexto, estadoDespesa: estadoDespesa,
-    barra: barra, resumoSaldo: resumoSaldo, contasSaldo: contasSaldo,
+    barra: barra, resumoSaldo: resumoSaldo, contasSaldo: contasSaldo, pl: pl,
     pedidosFerias: pedidosFerias, faltas: faltas, feriasASeguir: feriasASeguir, feriasLista: feriasLista, esperaDecisao: esperaDecisao,
     feriadosEFechos: feriadosEFechos, aSeguir: aSeguir, faltasDoMes: faltasDoMes, faltasPorMes: faltasPorMes,
     detalheFalta: detalheFalta, destinoOutOffice: destinoOutOffice, despesasGrupos: despesasGrupos, imputCurta: imputCurta,

@@ -105,12 +105,12 @@
       }
       var f = P.falha(r);
       if (f.tipo === 'rede') { S.semLigacao = K.online(); redesenhar(); return; }
-      if (f.tipo === 'embreve') { S.fora = true; sair(f.texto); return; }
+      if (f.tipo === 'embreve') { S.fora = true; S.foraTexto = f.texto; sair(f.texto); return; }
       if (f.tipo === 'recusa') {
         apagarCopia();   // a conta deixou de ter Pessoal: a cópia não fica no telemóvel
         S.recusa = f.code;
         if (f.tirar) { sair(f.texto); return; }
-        S.erro = f.texto; redesenhar(); return;
+        S.erro = f.texto; K.desenharNav(); redesenhar(); return;   // revisão de 48b0111b (P2): a barra marca-o e o ecrã da conta diz este motivo
       }
       if (f.tipo === 'login') { K.talvezLogin({ accao: 'login', texto: f.texto, revogado: f.revogado }); return; }
       S.erro = f.texto;
@@ -127,11 +127,13 @@
     }
 
     // ── Peças ──
-    function linha(o) {   // { ic, cls, t, s, est: {t, cls}, fn, k }
+    function linha(o) {   // { ic | ico, cls, t, s, est: {t, cls} | v (elemento), fn, k }
       var b = o.fn ? bt('mv-pes-l') : el('div', 'mv-pes-l leve');
-      var i = el('span', 'mv-pes-ic' + (o.cls ? ' ' + o.cls : '')); i.setAttribute('aria-hidden', 'true'); i.appendChild(ic(o.ic)); b.appendChild(i);
+      if (o.ico) { var io2 = ic(o.ico, 'mv-pes-ico'); b.appendChild(io2); }   // o ícone sem círculo (os acessos do Pessoal)
+      else { var i = el('span', 'mv-pes-ic' + (o.cls ? ' ' + o.cls : '')); i.setAttribute('aria-hidden', 'true'); i.appendChild(ic(o.ic)); b.appendChild(i); }
       var t = el('span', 'mv-pes-lt'); t.appendChild(el('b', null, o.t)); if (o.s) t.appendChild(el('small', null, o.s)); b.appendChild(t);
       if (o.est) b.appendChild(el('span', 'mv-pes-est' + (o.est.cls ? ' ' + o.est.cls : ''), o.est.t));
+      else if (o.v) { var vw = el('span', 'mv-pes-vw'); vw.appendChild(o.v); if (o.fn) vw.appendChild(ic('chev')); b.appendChild(vw); }   // o valor vivo à direita, com a seta junto dele (nunca cai sozinha)
       else if (o.fn) b.appendChild(ic('chev'));
       if (o.fn) { b.addEventListener('click', o.fn); if (o.k) b.setAttribute('data-k', o.k); }
       return b;
@@ -201,61 +203,122 @@
       var s = f.fecho ? f.nome + ' · conta se um pedido teu o cobrir' : f.nome + ' · não conta como dia de férias';
       return linha({ ic: 'cal', cls: '', t: P.intervalo(f.inicio, f.fim), s: s, k: comToque ? 'fer-' + f.inicio : null, fn: comToque ? folhaFeriados : null });
     }
-    /** As acções rápidas (o protótipo): Pedir férias e Falta ou ausência (F2), a Despesa (F3, só com `despesas`; sem ela
-        «Em breve»), as horas «Em breve» (F4). */
-    function rapidas() {
-      var w = el('div', 'mv-pes-rap'), um = function (k, nomeIc, rot, fn, pri) {
-        var b = bt(pri && fn ? 'pri' : (fn ? '' : 'embreve')), c = el('span', 'c'); c.appendChild(ic(nomeIc)); b.appendChild(c); b.appendChild(el('span', null, rot)); b.setAttribute('data-k', 'rap-' + k);
-        if (fn) b.addEventListener('click', fn); else { b.setAttribute('aria-disabled', 'true'); b.addEventListener('click', function () { K.toast(rot + ' pelo telemóvel chega a seguir. Por agora, no computador.'); }); }
-        w.appendChild(b);
-      };
-      var aus = podeEscrever();
-      um('ferias', 'cal', 'Pedir férias', aus ? function () { abrirPedir('FERIAS'); } : null, true);
-      um('falta', 'falta', 'Falta ou ausência', aus ? function () { abrirPedir(''); } : null);
-      um('despesa', 'etiqueta', 'Despesa', despPodeEscrever() ? function () { abrirDespesa(); } : null); um('horas', 'relogio', 'Horas', null);
-      return w;
-    }
-
     // ── O separador Pessoal ──
+    // Redesenho de 24 nov 2026 (decisão do Pedro: direcção A do protótipo DOEX-Movel-Pessoal-Premium-Prototipo.html, «uma
+    // coluna limpa, sem cartões»). SÓ APRESENTAÇÃO E ORGANIZAÇÃO: a leitura, a fila, o Desfazer, «Por enviar», os formulários,
+    // o `pode` e quem vê o quê ficam como estavam. A ordem, de cima para baixo, é por estado (o parecer de UX):
+    //   (1) o que não chegou («Por enviar» / «Não entrou»), uma linha por pedido, só quando existe;
+    //   (2) o saldo: rótulo pequeno, o número, «por marcar», a barra fina e UMA linha «N pendentes · N livres»;
+    //   (3) as acções do mesmo peso: Pedir férias · Falta ou ausência · Despesa (só as que o servidor deixa escrever);
+    //   (4) «A seguir», de 1 a 3 linhas: o que espera decisão, as próximas férias, o próximo feriado (o nome primeiro);
+    //   (5) um só grupo de acessos (Férias · Faltas e ausências · Despesas) com o número vivo à direita;
+    //   (6) «A minha conta ›» (a casca: uma linha que abre a folha da conta; o círculo do topo também).
+    // O nome aparece uma vez, na folha da conta. «Horas» e «Horas e atrasos» saem até existirem.
     function desenharTopo() {
       var v = $('v-pessoal'); if (!v) return;
-      comFoco(v, function () {
-        var cab = el('div', 'mv-hcab'), l = el('div', 'mv-hcab-l'), h1 = el('h1', 'mv-hola', 'Pessoal'); h1.id = 'pes-h1'; h1.tabIndex = -1; h1.setAttribute('data-foco-inicial', '');
-        l.appendChild(h1); cab.appendChild(l); cab.appendChild(linhaData()); v.appendChild(cab);
-        faixaErro(v);
-        var d = dadosVista(); if (!d) { semDados(v); return; }
-        var r = P.resumoSaldo(d), sd = el('section', 'mv-pes-saldo'); sd.setAttribute('aria-label', 'Férias ' + r.ano + ': ' + r.n + ' ' + r.unidade + ' ' + r.sub);
-        sd.appendChild(pilula({ t: 'Férias ' + r.ano, cls: 'nav' }));
-        var nb = el('div', 'mv-num', String(r.n)); nb.appendChild(el('small', null, r.unidade)); sd.appendChild(nb);
-        sd.appendChild(el('p', null, r.sub));
-        v.appendChild(sd);
-        barraEl(d.saldo).forEach(function (x) { v.appendChild(x); });
-        if (r.prox) v.appendChild(el('p', 'mv-pes-prox', r.prox));
-        if (d.saldo && d.saldo.comPorEnviar) v.appendChild(el('p', 'mv-pes-prox', 'Já conta com o que tens por enviar.'));
-        if (podeEscrever() || despPodeEscrever()) { v.appendChild(rapidas()); cartaoPorEnviar(v); }
-        else v.appendChild(el('p', 'mv-pes-nota', 'Pedir férias, registar faltas e despesas pelo telemóvel chega a seguir. Por agora, no computador.'));
-        var a = P.aSeguir(d, feriados());
-        v.appendChild(grupo('A seguir', a.pedido || a.feriado ? [a.pedido ? linhaPedido(a.pedido, d) : null, a.feriado ? linhaFeriado(a.feriado, true) : null] : [linha({ ic: 'cal', t: 'Nada marcado a seguir' })]));
-        var esp = P.esperaDecisao(d).filter(function (p) { return !p.porEnviar; });
-        if (esp.length) v.appendChild(grupo('À espera de decisão', esp.map(function (p) { return P.ehFerias(p) ? linhaPedido(p, d) : linhaFalta(p, d); }), String(esp.length)));
-        var fm = P.faltasDoMes(d), s = d.saldo || {}, pr = d.porReembolsar || {};
-        v.appendChild(grupo('Férias', [linha({ ic: 'cal', t: 'As minhas férias', s: (Number(s.direito) || 0) + ' de direito · os pedidos, o ano e os feriados', k: 'ir-ferias', fn: function () { K.abrir('v-pes-ferias'); } })]));
-        v.appendChild(grupo('Faltas e ausências', [linha({ ic: 'falta', t: fm.mes + ': ' + fm.faltas + (fm.faltas === 1 ? ' falta' : ' faltas') + ' · ' + fm.fora + ' fora do escritório', s: 'Teletrabalho e Out of Office contam à parte', k: 'ir-faltas', fn: function () { K.abrir('v-pes-faltas'); } })]));
-        v.appendChild(grupo('Horas e atrasos', [linha({ ic: 'relogio', t: 'O meu registo de horas e os atrasos', s: 'Chega em breve' })]));
-        v.appendChild(grupo('Despesas', [linha({ ic: 'etiqueta', t: 'Por reembolsar: ' + P.eur(pr.valor), s: (Number(pr.n) || 0) + ((Number(pr.n) || 0) === 1 ? ' despesa' : ' despesas') + ' · pendentes ou a aguardar assinatura', k: 'ir-despesas', fn: function () { K.abrir('v-pes-despesas'); } })]));
-        if (despPodeEscrever()) v.appendChild(el('p', 'mv-pes-nota', 'As horas pelo telemóvel chegam a seguir. Por agora, no computador.'));
-        else if (podeEscrever()) v.appendChild(el('p', 'mv-pes-nota', 'Despesas e horas pelo telemóvel chegam a seguir. Por agora, no computador.'));
-      });
+      comFoco(v, function () { corpoTopo(v); if (K.seccaoConta) K.seccaoConta(v); });
     }
-    /** O cartão «Por enviar» do Pessoal: os pedidos desta conta que ainda não entraram (os parados primeiro, com o motivo). */
+    /** Um valor à direita de uma linha: texto com os números a negrito ([['texto'], ['número', true], …]). */
+    function valorEl(partes) { var s = el('span', 'mv-pes-v'); partes.forEach(function (x) { s.appendChild(x[1] ? el('b', null, String(x[0])) : document.createTextNode(String(x[0]))); }); return s; }
+    function corpoTopo(v) {
+      var cab = el('div', 'mv-hcab'), l = el('div', 'mv-hcab-l'), h1 = el('h1', 'mv-hola', 'Pessoal'); h1.id = 'pes-h1'; h1.tabIndex = -1; h1.setAttribute('data-foco-inicial', '');
+      l.appendChild(h1);
+      var av = K.contaTopo ? K.contaTopo() : null; if (av) l.appendChild(av);   // o círculo pequeno das iniciais: abre a conta
+      cab.appendChild(l); cab.appendChild(linhaData()); v.appendChild(cab);
+      faixaErro(v);
+      cartaoPorEnviar(v);   // (1)
+      var d = dadosVista();
+      var zona = el('div', 'mv-pes-heroi-z'); v.appendChild(zona);   // a altura do saldo fica reservada: não salta quando chegam os dados
+      if (!d) { semDados(zona); return; }
+      zona.appendChild(saldoEl(d));   // (2)
+      var acoes = acoesEl(); if (acoes) v.appendChild(acoes);   // (3)
+      else v.appendChild(el('p', 'mv-pes-nota', 'Pedir férias, registar faltas e despesas pelo telemóvel chega a seguir. Por agora, no computador.'));
+      v.appendChild(aSeguirEl(d));   // (4)
+      v.appendChild(acessosEl(d));   // (5)
+    }
+    /** (2) O saldo: um botão que abre as Férias. Os quatro números da barra ficam no rótulo dela (e no ecrã Férias). */
+    function saldoEl(d) {
+      var r = P.resumoSaldo(d), s = d.saldo || {}, x = P.barra(s), pen = Number(s.pendentes) || 0, liv = Math.max(Number(s.livres) || 0, 0);
+      var b = bt('mv-pes-saldo mv-pes-heroi'); b.setAttribute('data-k', 'ir-saldo');
+      // revisão de 029ccb2a (8): um só rótulo, no botão, com os quatro números da barra (a barra dentro de um botão não chega ao leitor)
+      b.setAttribute('aria-label', 'Férias ' + r.ano + ': ' + r.n + ' ' + r.unidade + ' por marcar. ' + x.aria + '.' + (s.comPorEnviar ? ' Já conta com o que tens por enviar.' : '') + ' Abrir as férias');
+      b.appendChild(el('span', 'mv-pes-rot', 'Férias ' + r.ano));
+      var n = el('span', 'mv-pes-hn'); n.appendChild(el('b', null, String(r.n))); n.appendChild(el('span', null, r.unidade + ' por marcar')); n.appendChild(ic('chev')); b.appendChild(n);
+      var w = el('span', 'mv-pes-b3 fina'); w.setAttribute('aria-hidden', 'true');
+      [['goz', x.goz], ['mar', x.mar], ['pen', x.pen]].forEach(function (z) { if (z[1] > 0) { var i = el('i', z[0]); i.style.width = z[1] + '%'; w.appendChild(i); } });
+      b.appendChild(w);
+      var sub = pen ? [[pen, true], [pen === 1 ? ' pendente · ' : ' pendentes · '], [liv, true], [liv === 1 ? ' livre' : ' livres']] : [[liv, true], [liv === 1 ? ' livre para pedir' : ' livres para pedir']];
+      if (s.comPorEnviar) sub.push([' · já conta com o que tens por enviar']);
+      var hs = el('span', 'mv-pes-hs'); hs.setAttribute('aria-hidden', 'true'); sub.forEach(function (z) { hs.appendChild(z[1] ? el('b', null, String(z[0])) : document.createTextNode(String(z[0]))); }); b.appendChild(hs);
+      b.addEventListener('click', function () { K.abrir('v-pes-ferias'); });
+      return b;
+    }
+    /** (3) As acções, do mesmo peso, só as que o servidor deixa escrever (sem nenhuma: null, e a frase de sempre). */
+    function acoesEl() {
+      var l = [];
+      if (podeEscrever()) { l.push(['ferias', 'cal', 'Pedir férias', function () { abrirPedir('FERIAS'); }]); l.push(['falta', 'falta', 'Falta ou ausência', function () { abrirPedir(''); }]); }
+      if (despPodeEscrever()) l.push(['despesa', 'etiqueta', 'Despesa', function () { abrirDespesa(); }]);
+      if (!l.length) return null;
+      var w = el('div', 'mv-pes-acoes');
+      l.forEach(function (a) { var b = bt('mv-pes-ab'); b.setAttribute('data-k', 'rap-' + a[0]); b.appendChild(ic(a[1])); b.appendChild(el('span', null, a[2])); b.addEventListener('click', a[3]); w.appendChild(b); });
+      return w;
+    }
+    /** O próximo feriado ou fecho em «A seguir»: o nome primeiro, a data à direita. */
+    function linhaFeriadoTopo(f, hoje) {
+      // um fecho que já começou (revisão de 029ccb2a): diz-se até quando dura; um que acaba hoje já não vem (feriadosEFechos)
+      var data = f.fecho && f.inicio <= hoje ? 'até ' + P.intervalo(f.fim, f.fim) : P.intervalo(f.inicio, f.fim);
+      return linha({ ic: 'cal', t: f.nome, s: f.fecho ? 'Conta se um pedido teu o cobrir' : 'Feriado', v: valorEl([[data, true]]), k: 'fer-' + f.inicio, fn: folhaFeriados });
+    }
+    /** (4) «A seguir», no máximo 3 linhas (revisão de 029ccb2a). O que ESPERA DECISÃO entra sempre e primeiro, também com data
+        passada (é o que mais importa); depois as próximas férias (as que ainda não acabaram) e o próximo feriado ou fecho. O que já
+        passou e não espera decisão não entra. Com mais de 3 à espera, ficam 2 e uma última linha «E mais N à espera de decisão ›»,
+        que abre as Férias (ou as Faltas, se os que faltam forem todos faltas). */
+    function aSeguirEl(d) {
+      var esp = P.esperaDecisao(d).filter(function (p) { return !p.porEnviar; }), a = P.aSeguir(d, feriados()), ls = [];
+      var linhaDe = function (p) { return P.ehFerias(p) ? linhaPedido(p, d) : linhaFalta(p, d); };
+      if (esp.length > 3) {
+        esp.slice(0, 2).forEach(function (p) { ls.push(linhaDe(p)); });
+        var resto = esp.slice(2), soFaltas = resto.every(function (p) { return !P.ehFerias(p); });
+        ls.push(linha({ ic: 'lista', cls: 'ama', t: 'E mais ' + resto.length + ' à espera de decisão', k: 'seguir-mais', fn: function () { K.abrir(soFaltas ? 'v-pes-faltas' : 'v-pes-ferias'); } }));
+      } else {
+        esp.forEach(function (p) { ls.push(linhaDe(p)); });
+        var outros = [];
+        if (a.pedido && a.pedido.fim >= d.hoje && !esp.some(function (p) { return p.id === a.pedido.id; })) outros.push(linhaPedido(a.pedido, d));
+        if (!esp.length && !outros.length) outros.push(linha({ ic: 'cal', t: 'Sem férias marcadas' }));
+        if (a.feriado) outros.push(linhaFeriadoTopo(a.feriado, d.hoje));
+        outros.slice(0, Math.max(3 - ls.length, 0)).forEach(function (x) { ls.push(x); });
+      }
+      var s = el('section', 'mv-sec mv-pes-seguir'), h = el('div', 'mv-sec-h' + (ls.length < 2 ? ' mv-so-leitor' : '')); h.appendChild(el('h2', null, 'A seguir')); s.appendChild(h);
+      var g = el('div', 'mv-pes-lista'); ls.forEach(function (x) { g.appendChild(x); }); s.appendChild(g);
+      return s;
+    }
+    /** (5) Os acessos: Férias, Faltas e ausências e Despesas, cada um com o número vivo à direita. */
+    function acessosEl(d) {
+      var x = P.barra(d.saldo || {}), fm = P.faltasDoMes(d), pr = d.porReembolsar || {}, nd = Number(pr.n) || 0;
+      var s = el('section', 'mv-sec mv-pes-acessos'), h = el('div', 'mv-sec-h mv-so-leitor'); h.appendChild(el('h2', null, 'O meu Pessoal')); s.appendChild(h);
+      var g = el('div', 'mv-pes-lista');
+      g.appendChild(linha({ ico: 'cal', t: 'Férias', v: valorEl([[x.n.goz, true], [x.n.goz === 1 ? ' gozado · ' : ' gozados · '], [x.n.mar, true], [x.n.mar === 1 ? ' marcado' : ' marcados']]), k: 'ir-ferias', fn: function () { K.abrir('v-pes-ferias'); } }));
+      var vf = [[fm.mes + ': '], [fm.faltas, true], [fm.faltas === 1 ? ' falta' : ' faltas']]; if (fm.fora) vf.push([' · '], [fm.fora, true], [' fora']);
+      g.appendChild(linha({ ico: 'falta', t: 'Faltas e ausências', v: valorEl(vf), k: 'ir-faltas', fn: function () { K.abrir('v-pes-faltas'); } }));
+      g.appendChild(linha({ ico: 'etiqueta', t: 'Despesas', v: nd || Number(pr.valor) ? valorEl([[P.eur(pr.valor), true], [' por reembolsar']]) : valorEl([['nada por reembolsar']]), k: 'ir-despesas', fn: function () { K.abrir('v-pes-despesas'); } }));
+      s.appendChild(g);
+      return s;
+    }
+    /** (1) O que não chegou: uma linha por pedido desta conta que ainda não entrou (os parados primeiro, com o motivo). */
     function cartaoPorEnviar(v) {
       var ms = meusNaFila(); if (!ms.length) return;
       ms.sort(function (a, b) { return (a.estado === 'parado' ? 0 : 1) - (b.estado === 'parado' ? 0 : 1) || String(a.criadoEm).localeCompare(String(b.criadoEm)); });
-      v.appendChild(grupo('Por enviar', ms.map(function (q) {
-        var par = q.estado === 'parado', L = logica(q);
-        return linha({ ic: icItem(q), cls: par ? 'neg' : 'ama', t: L.tituloItem(q) + (par ? ' · não entrou' : ''), s: par ? (q.erro || 'Não entrou') : (L.resumoItem(q) || q.resumo || '') + ' · ' + estadoFila(q, false),
-          est: par ? { t: 'Ver', cls: 'neg' } : null, k: 'pe-' + q.id, fn: function () { folhaItem(q); } });
-      }), String(ms.length)));
+      var s = el('section', 'mv-sec mv-pes-fila'), h = el('div', 'mv-sec-h mv-so-leitor'); h.appendChild(el('h2', null, 'Por enviar (' + ms.length + ')')); s.appendChild(h);
+      ms.forEach(function (q) {
+        var par = q.estado === 'parado', L = logica(q), b = bt('mv-faixa mv-faixa-toda ' + (par ? 'neg' : 'ama')); b.setAttribute('data-k', 'pe-' + q.id);
+        b.appendChild(ic(par ? 'alerta' : 'enviar'));
+        var t = el('span', 'mv-faixa-t'); t.appendChild(el('b', null, (par ? 'Não entrou · ' : 'Por enviar · ') + L.tituloItem(q)));
+        t.appendChild(el('small', null, par ? (q.erro || 'Não entrou') : (L.resumoItem(q) || q.resumo || '') + ' · ' + estadoFila(q, false))); b.appendChild(t);
+        b.appendChild(el('span', 'mv-faixa-b', 'Ver'));
+        b.addEventListener('click', function () { folhaItem(q); });
+        s.appendChild(b);
+      });
+      v.appendChild(s);
     }
 
     // ── Férias ──
@@ -270,6 +333,7 @@
         barraEl(d.saldo).forEach(function (x) { cart.appendChild(x); });
         P.contasSaldo(d).forEach(function (z) { cart.appendChild(K.rlinha(z[0], z[1])); });
         v.appendChild(cart);
+        var prox = P.resumoSaldo(d).prox; if (prox) v.appendChild(el('p', 'mv-pes-prox', prox));   // 24 nov 2026: «E 2 dias em 2027…» saiu do topo do Pessoal para aqui (o detalhe)
         v.appendChild(segm('Ver', [['lista', 'Os meus pedidos'], ['ano', 'O ano']], S.vistaFer, 'vf', function (x) { S.vistaFer = x; desenharFerias(); }));
         if (S.vistaFer === 'ano') {
           var g = P.anoGrelha(d, feriados()), sec = el('section', 'mv-sec'), h = el('div', 'mv-sec-h'); h.appendChild(el('h2', null, d.ano + ', dia a dia')); sec.appendChild(h);
@@ -1146,7 +1210,9 @@
       VISTAS: VISTAS, ROTULO: { 'v-pessoal': 'Pessoal', 'v-pes-ferias': 'Férias', 'v-pes-faltas': 'Faltas', 'v-pes-despesas': 'Despesas', 'v-pes-form': 'Pedido', 'v-pes-feito': 'Pessoal', 'v-pes-desp-form': 'Despesa' },
       TITULO: { 'v-pessoal': 'Pessoal', 'v-pes-ferias': 'Férias', 'v-pes-faltas': 'Faltas e ausências', 'v-pes-despesas': 'Despesas', 'v-pes-form': 'Pedido', 'v-pes-feito': 'Pessoal', 'v-pes-desp-form': 'Despesa' },
       titulo: function (v) { if (v === 'v-pes-form' && S.form && AU) return tituloForm(); if (v === 'v-pes-desp-form' && S.dform) return S.dform.accao === 'corrigir' ? 'Corrigir despesa' : 'Registar despesa'; return ''; },
-      ativo: ativo, recusado: recusado, ler: ler, desenhar: desenhar, redesenhar: redesenhar, aoSair: aoSair,
+      ativo: ativo, recusado: recusado, ler: ler,
+      /** Porque é que o Pessoal não abre, com as palavras do servidor (a recusa ou o «em breve» desta abertura); '' = não se sabe. */
+      motivo: function () { return S.recusa ? (S.erro || '') : (S.fora ? (S.foraTexto || '') : ''); }, desenhar: desenhar, redesenhar: redesenhar, aoSair: aoSair,
       aoMudarRede: function () { S.semLigacao = false; if (naVista()) { if (K.online()) ler(true); else redesenhar(); } },
       // F2: os pedidos (a casca chama-os: o «+», o drenar e o «Por enviar»)
       ausDisponivel: ausDisponivel, podeEscrever: podeEscrever, abrirPedir: abrirPedir, retido: retido,

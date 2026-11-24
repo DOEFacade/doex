@@ -52,7 +52,7 @@
   --mv-barra-h: 128px;    /* altura da barra fixa: app.js mede-a */
 
   /* App do telemóvel, 1.ª fatia (12 nov 2026; guia 13b, «A casca da app»): do protótipo validado DOEX-Telemovel-App-Prototipo.html */
-  --mv-nav-h: 64px;         /* barra de destinos (Hoje · Tarefas · + · Pessoal · Conta), sem a zona segura */
+  --mv-nav-h: 64px;         /* barra de destinos (Hoje · Tarefas · + · Obras · Pessoal), sem a zona segura */
   --mv-campo-h-p: 96px;     /* campo de texto curto (o que se fez) */
   --mv-toast-max: 520px;    /* largura máxima do aviso com Desfazer */
   --mv-mos-h: 208px;        /* bloco do mosaico do Hoje */
@@ -365,6 +365,33 @@ html.mv-com-folha { overflow: hidden; }   /* a página por baixo não rola com a
 .mv-conta b { display: block; font-size: var(--mv-fs-txt); font-weight: 650; }
 .mv-conta small { display: block; font-size: var(--mv-fs-sec); color: var(--t2); }
 .mv-conta-nota { font-size: var(--mv-fs-sec); color: var(--t2); margin: 0 0 var(--e4); }
+/* A conta (redesenho do Pessoal, 24 nov 2026, direcção A do protótipo DOEX-Movel-Pessoal-Premium-Prototipo.html, guia 13b):
+   uma folha com o nome (a única vez), a sessão, as linhas da conta, «Perdeste um telemóvel?» recolhido, Sair longe do Desligar e
+   com o mesmo peso das outras linhas, e a versão só quando se sabe. Sem Pessoal, o mesmo corpo aberto no ecrã Conta. */
+.mv-quem-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--mv-fino); }
+.mv-quem-t b { font-size: var(--mv-fs-txt); font-weight: 650; line-height: var(--mv-lh-op); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-quem-t small { font-size: var(--mv-fs-leg); color: var(--t2); }
+.mv-conta-ops .mv-op:first-child { border-top-color: var(--filete); }
+.mv-conta-mais { display: flex; align-items: center; width: 100%; min-height: var(--mv-alvo); padding: 0 var(--e3); border: 0; background: none; color: var(--t2); font: inherit; font-size: var(--mv-fs-sec); text-align: left; text-decoration: underline; text-underline-offset: var(--mv-fino); }
+.mv-conta-perdi { margin: 0 var(--e3) var(--e2); }
+.mv-conta-sair { margin-top: var(--e5); border-top-color: var(--filete); }
+.mv-conta-sair:first-child { border-top-color: var(--filete); }
+.mv-conta-sair .mv-conta-nota { margin: 0; }
+.mv-pes-conta { margin-top: var(--e6); border-top: 1px solid var(--filete); }
+.mv-pes-conta > .mv-pes-l { border-top-color: transparent; }
+#conta-h2:focus { outline: none; }
+.mv-pes .mv-conta-sem { margin: var(--e2) 0 var(--e4); }
+.mv-obras-lead { margin-bottom: var(--e3); }
+.mv-obras-l > .mv-lo:first-child { border-top-color: transparent; }
+.mv-obras-l .mv-lo { min-height: var(--mv-linha-g); }
+.mv-obras-l .mv-lo-n small.mv-obra-fechada { color: var(--t3); }
+/* revisão de 48b0111b: «Outras obras» recolhidas por baixo das minhas, e uma obra só para ler */
+.mv-obras-tg { display: flex; align-items: center; gap: var(--e3); width: 100%; min-height: var(--mv-alvo-g); padding: var(--e2) var(--e3) var(--e2) var(--e4); border: 1px solid var(--filete); border-radius: var(--r-xl); background: none; color: var(--tinta); text-align: left; font: inherit; }
+.mv-obras-tg > .mv-ic { flex: none; width: var(--mv-ic-pp); height: var(--mv-ic-pp); color: var(--t3); }
+.mv-obras-oc { margin-top: var(--e3); }
+.mv-obra-ler-g { margin-top: var(--e4); padding: 0 var(--e4); }
+.mv-obra-ler-g > .mv-rl:first-child { border-top-color: transparent; }
+#v-obra-ler > .mv-faixa { margin: var(--e3) 0 0; }
 
 /* ── entrar ── */
 /* entrada: calma e centrada (variante B do protótipo), só a marca, os campos, «Entrar» e o rodapé com a versão */
@@ -438,7 +465,7 @@ html.mv-casca #faixa, html.mv-casca #faixa-rede, html.mv-casca #alheios { displa
 .mv-nada { margin-top: var(--e6); font-size: var(--mv-fs-txt); color: var(--t2); }
 .mv-desc { font-size: var(--mv-fs-txt); line-height: var(--mv-lh-txt); margin: var(--e2) 0 var(--e4); white-space: pre-line; }
 .mv-folha-txt { font-size: var(--mv-fs-sec); color: var(--t2); line-height: var(--mv-lh-sec); margin: var(--e3) 0; }
-.mv-conta-v { margin: var(--e3) 0 0; font-size: var(--mv-fs-leg); color: var(--t3); text-align: center; font-family: var(--f-mono); }
+.mv-conta-v { margin: var(--e4) 0 0; padding: 0 var(--e3); font-size: var(--mv-fs-leg); color: var(--t3); font-variant-numeric: tabular-nums; }
 .mv-rasc { flex: none; font-size: var(--mv-fs-sec); font-weight: 600; color: var(--ama); }
 .mv-rasc.neu { color: var(--t2); }
 .ama-t { color: var(--ama); font-weight: 600; }
@@ -446,8 +473,7 @@ html.mv-casca #faixa, html.mv-casca #faixa-rede, html.mv-casca #alheios { displa
 
 /* barra de destinos */
 .mv-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: 1fr 1fr var(--mv-linha-g) 1fr 1fr; align-items: center; min-height: calc(var(--mv-nav-h) + var(--mv-sa-bot)); padding: 0 calc(var(--e2) + var(--mv-sa-dir)) var(--mv-sa-bot) calc(var(--e2) + var(--mv-sa-esq)); background: var(--fundo); border-top: 1px solid var(--filete); }
-.mv-nav.tres { grid-template-columns: 1fr var(--mv-linha-g) 1fr; }   /* a conta só de telemóvel (Pessoal, F0): Hoje · + · Conta */
-.mv-nav.quatro #b-conta { grid-column: span 2; }   /* a conta externa (Pessoal, F0): Hoje · Tarefas · + · Conta; o «+» fica no meio, onde está para todos */
+.mv-nav.quatro > .mv-dest:first-child { grid-column: span 2; }   /* a conta só de telemóvel (24 nov 2026): Hoje · + · Obras · Conta; o «+» fica no meio, onde está para todos */
 .mv-dest { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--mv-fino); min-height: var(--mv-alvo-g); min-width: var(--mv-alvo); border: 0; background: none; color: var(--t2); font-size: var(--mv-fs-leg); font-weight: 600; border-radius: var(--r-l); padding: 0; }
 .mv-dest[aria-current="page"] { color: var(--navy); font-weight: 650; }
 .mv-dest.embreve { color: var(--t3); }
@@ -780,10 +806,42 @@ span.mv-tf-foto { display: grid; place-items: center; color: var(--t3); font-siz
 .mv-pes { padding-top: calc(var(--mv-sa-top) + var(--e3)); }
 .mv-pes .mv-hcab-l { min-height: var(--e6); }
 .mv-pes > .mv-faixa { margin: var(--e4) 0 0; }
-.mv-pes-saldo { margin-top: var(--e5); text-align: center; }
-.mv-pes-saldo .mv-num { color: var(--tinta); }
-.mv-pes-saldo .mv-num small { font-size: var(--mv-fs-tit); font-weight: 600; letter-spacing: normal; margin-left: var(--e1); }
-.mv-pes-saldo p { margin: 0; font-size: var(--mv-fs-sec); color: var(--t2); line-height: var(--mv-lh-sec); }
+/* o topo do Pessoal (redesenho de 24 nov 2026, direcção A): uma coluna sem cartões; o saldo à esquerda é o único destaque,
+   com a altura reservada (não salta quando chegam os dados); as acções do mesmo peso; linhas com filetes e o valor vivo à direita */
+.mv-pes-heroi-z { margin-top: var(--e5); min-height: calc(var(--mv-linha-g) + var(--e7)); }
+.mv-pes-heroi-z > .mv-nada { margin-top: 0; }
+.mv-pes-saldo { display: block; width: 100%; padding: 0; border: 0; background: none; color: var(--tinta); text-align: left; font: inherit; }
+.mv-pes-saldo:active { filter: var(--mv-premido); }
+.mv-pes-rot { display: block; font-size: var(--mv-fs-leg); font-weight: 600; color: var(--t2); letter-spacing: var(--mv-ls-rot); }
+.mv-pes-hn { display: flex; align-items: baseline; gap: var(--e2); margin-top: var(--e1); }
+.mv-pes-hn > b { font-size: var(--mv-fs-num-m); font-weight: 650; letter-spacing: var(--mv-ls-num); line-height: var(--mv-lh-num); font-variant-numeric: tabular-nums; }
+.mv-pes-hn > span { font-size: var(--mv-fs-txt); }
+.mv-pes-hn > .mv-ic { width: var(--mv-ic-pp); height: var(--mv-ic-pp); color: var(--t3); margin-left: auto; align-self: center; flex: none; }
+.mv-pes-b3.fina { height: var(--e2); border-radius: var(--e1); margin-top: var(--e3); }
+.mv-pes-hs { display: block; margin-top: var(--e2); font-size: var(--mv-fs-sec); color: var(--t2); line-height: var(--mv-lh-sec); font-variant-numeric: tabular-nums; }
+.mv-pes-hs b { color: var(--tinta); font-weight: 600; }
+/* revisão de 029ccb2a (2): as acções partem só entre palavras; quando as três não cabem (320 px, letra grande), a última passa para baixo */
+.mv-pes-acoes { display: flex; flex-wrap: wrap; gap: var(--e2); margin-top: var(--e4); }
+.mv-pes-ab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--e1); min-height: var(--mv-linha-g); padding: var(--e2); border: 1px solid var(--fileteF); border-radius: var(--r-l); background: var(--papel); color: var(--navy); font: inherit; font-size: var(--mv-fs-sec); font-weight: 600; line-height: var(--mv-lh-op); text-align: center; overflow-wrap: normal; flex: 1 1 0; min-width: min-content; }
+.mv-pes-ab .mv-ic { width: var(--mv-ic-p); height: var(--mv-ic-p); flex: none; }
+.mv-pes-ab:active { filter: var(--mv-premido); }
+.mv-pes-fila { margin-top: var(--e4); }
+.mv-pes .mv-pes-fila { margin-top: var(--e4); }
+.mv-pes-fila .mv-faixa { margin: 0 0 var(--e2); }
+.mv-pes-fila .mv-faixa-t small { display: block; font-size: var(--mv-fs-leg); color: var(--t2); }
+.mv-pes-lista > .mv-pes-l:first-child { border-top-color: transparent; }
+.mv-pes-lista .mv-pes-l { min-height: var(--mv-alvo-g); padding-left: 0; flex-wrap: wrap; }
+.mv-pes-lista .mv-pes-lt { flex: 1 1 var(--e8); min-width: min-content; }   /* nunca mais estreito do que a palavra mais longa: o título parte só entre palavras */
+.mv-pes-lista .mv-pes-lt b, .mv-pes-lista .mv-pes-lt small { overflow-wrap: break-word; }
+/* o valor e a seta são um só bloco (.mv-pes-vw): ficam ao lado do título; sem espaço (320 px, letra grande) descem juntos para a linha de baixo, à direita */
+.mv-pes-vw { display: flex; align-items: center; gap: var(--e1); flex: 0 1 auto; max-width: 100%; margin-left: auto; }
+.mv-pes-vw > .mv-ic { flex: none; width: var(--mv-ic-pp); height: var(--mv-ic-pp); color: var(--t3); }
+.mv-pes-lista .mv-pes-est { max-width: 100%; margin-left: auto; white-space: nowrap; }   /* a pílula do estado também desce inteira, à direita */
+.mv-pes-l > .mv-ic.mv-pes-ico { width: var(--mv-ic-p); height: var(--mv-ic-p); color: var(--t2); margin-right: 0; }
+.mv-pes-v { flex: 0 1 auto; min-width: 0; text-align: right; font-size: var(--mv-fs-sec); color: var(--t2); line-height: var(--mv-lh-op); font-variant-numeric: tabular-nums; }
+.mv-pes-v b { color: var(--tinta); font-weight: 600; }
+.mv-pes .mv-pes-acessos { margin-top: var(--e5); }
+.mv-pes .mv-hcab-l .mv-av { margin-right: calc(-1 * var(--e1)); }
 .mv-pes-b3 { display: flex; height: var(--e3); border-radius: var(--e2); overflow: hidden; background: var(--papel2); box-shadow: var(--mv-borda-fina); margin: var(--e4) 0 0; }
 .mv-pes-b3 > i { display: block; height: 100%; flex: none; }
 .mv-pes-b3 .goz, .mv-leg i.goz, .mv-pes-ano i.goz { background: var(--neutro); }
@@ -837,12 +895,6 @@ button.mv-pes-l:active { filter: var(--mv-premido); }
 
 /* ── Pessoal, F2 (17 nov 2026): pedir, corrigir e cancelar férias e faltas (pessoal-ecra.js). Do protótipo validado
    docs/prototipos/telemovel-perfis/pessoal.js (as acções rápidas, o calendário do mês, os passos). Só tokens de 13b. ── */
-.mv-pes-rap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--e2); margin-top: var(--e5); }
-.mv-pes-rap > button { display: flex; flex-direction: column; align-items: center; gap: var(--e2); min-height: var(--mv-alvo); padding: 0; border: 0; background: none; font: inherit; font-size: var(--mv-fs-leg); font-weight: 600; line-height: var(--mv-lh-sec); color: var(--tinta); text-align: center; }
-.mv-pes-rap .c { width: var(--mv-alvo-g); height: var(--mv-alvo-g); border-radius: 50%; display: grid; place-items: center; background: var(--papel); color: var(--navy); box-shadow: var(--mv-borda-fina); }
-.mv-pes-rap > button.pri .c { background: var(--navy); color: var(--on-navy); box-shadow: none; }
-.mv-pes-rap > button.embreve, .mv-pes-rap > button.embreve .c { color: var(--t3); }
-.mv-pes-rap > button:active .c { filter: var(--mv-premido); }
 .mv-pes-acao { margin-top: var(--e5); }
 .mv-pes-acao .mv-ic { margin-right: var(--e2); }
 .mv-pes-passo { margin: var(--e4) 0 var(--e1); font-weight: 600; }
