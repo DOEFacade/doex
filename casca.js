@@ -49,7 +49,16 @@
   function contaId() { var s = sessao(); return (s && s.contaId) || ''; }
   function obras() { var s = sessao(); return (s && Array.isArray(s.obras)) ? s.obras : []; }
   function obraDe(id) { return obras().filter(function (o) { return o.id === id; })[0] || null; }
-  function funcs() { var s = sessao(); return s && Array.isArray(s.funcionalidades) ? s.funcionalidades : ['ocorrencia']; }
+  /** As funcionalidades desta conta (25 nov 2026, defeito real: uma sessão aberta antes de o servidor servir `material` nunca
+      o via até sair e entrar). Quem decide é o servidor, por conta: vale a lista do Hoje lido NESTA abertura; sem ela (sem
+      rede, antes da 1.ª leitura), a da última cópia do Hoje desta conta; sem cópia, a do login. Uma funcionalidade retirada
+      no servidor desaparece da mesma forma. Contas sem o Hoje novo (externas, servidor antigo) ficam com a do login. */
+  function funcsLogin() { var s = sessao(); return s && Array.isArray(s.funcionalidades) ? s.funcionalidades : ['ocorrencia']; }
+  function funcs() {
+    if (c.funcsHoje) return c.funcsHoje;
+    if (c.semHojeMv) return funcsLogin();
+    var cc = contaId() ? cache() : null, h = cc && cc.hoje; return h && Array.isArray(h.funcionalidades) && h.funcionalidades.length ? h.funcionalidades : funcsLogin();
+  }
   function tem(f) { return funcs().indexOf(f) >= 0; }
   function online() { return navigator.onLine !== false; }
   function primeiroNome(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
@@ -211,10 +220,11 @@
       depois de entrar perde-o sem ter de entrar outra vez). Muda a barra só se o Pessoal mudou. */
   function funcsDoHoje(data) {
     if (!data || !Array.isArray(data.funcionalidades)) return;
-    var antes = pessoalAtivo() + '|' + quemVe().pessoal; c.funcsHoje = data.funcionalidades.slice(); c.recusaHoje = self.DoeMovelPessoal ? self.DoeMovelPessoal.recusaDe(data) : '';
+    var antes = pessoalAtivo() + '|' + quemVe().pessoal, fAntes = funcs().join(','); c.funcsHoje = data.funcionalidades.slice(); c.recusaHoje = self.DoeMovelPessoal ? self.DoeMovelPessoal.recusaDe(data) : '';
     if (pessoalAtivo() + '|' + quemVe().pessoal !== antes) { desenharNav(); contaParaPessoal(); }
+    else if (funcs().join(',') !== fAntes) desenharNav();   // uma funcionalidade nova ou retirada: a barra e (no fim da leitura) o Hoje e o «+» seguem-na
   }
-  function funcsPessoal() { return c.funcsHoje || funcs(); }
+  function funcsPessoal() { return c.funcsHoje || funcsLogin(); }   // o Pessoal fica como estava: o Hoje desta abertura, senão o login
   /** Revisão de f673e387 (C2): o servidor da F1 diz `pessoalRecusa` a uma conta que nunca terá o Pessoal (VIEWER, ADMIN sem
       pessoa, pessoa inactiva…): o do Hoje lido nesta abertura, senão o do login. Ausente = tem, ou é uma Edge de antes. */
   function pessoalRecusa() { var s = sessao(); return c.funcsHoje ? c.recusaHoje : ((s && s.pessoalRecusa) || ''); }
@@ -429,9 +439,7 @@
     if (TE && TE.disponivel()) ops.push(['tf', 'falta', 'Trabalho em falta', 'Foto, o que falta e onde']);
     if (BE && BE.disponivel()) ops.push(['bc', 'obra', 'Bloqueio do cliente', 'O que precisamos do cliente, foto e onde']);
     if (ME && ME.disponivel()) ops.push(['pm', 'caixa', 'Pedir material', 'O que precisas e até quando']);   // fatia 2b, entrega 1 (24 nov 2026)
-    if (PE && quemVe().pessoal && PE.podeEscrever()) { ops.push(['pes-fer', 'cal', 'Pedir férias', 'Os dias úteis contam-se sozinhos']); ops.push(['pes-falta', 'falta', 'Falta ou ausência', 'Também teletrabalho, out of office e visitas a clientes']); }   // Pessoal, F2
-    var despOk = !!(PE && quemVe().pessoal && PE.despPodeEscrever && PE.despPodeEscrever());
-    if (despOk) ops.push(['pes-desp', 'etiqueta', 'Despesa', 'Valor, categoria e onde imputar']);   // Pessoal, F3
+    // Férias, faltas e despesas vivem SÓ no separador Pessoal (pedido do Pedro, repetido a 25 nov): o «+» é o registo de obra.
     folha({ titulo: 'Registar', corpo: function (cc) {
       ops.forEach(function (o) {
         var extra = null;
@@ -439,10 +447,10 @@
         if (o[0] === 'diario') { var e = estadoDiarioHoje(obraHoje()); if (!aceitaNovo(obraHoje(), hojeDia().dia) && !e.meu && !e.pend && !e.rascunho) extra = el('span', 'mv-rasc neu', 'Fechado'); else if (e.anulando) extra = el('span', 'mv-rasc', 'Anulado, por enviar'); else if (e.rascunho) extra = el('span', 'mv-rasc', 'Rascunho'); else if (e.pend) extra = el('span', 'mv-rasc', 'Por enviar'); else if (e.meu) extra = el('span', 'mv-rasc neu', 'Feito'); }
         if ((o[0] === 'tf' && TE.temRascunho()) || (o[0] === 'bc' && BE.temRascunho())) extra = el('span', 'mv-rasc', 'Rascunho');   // fecho da 2a: o «+» continua-o
         var b = linhaOp(o[1], o[2], o[3], extra); b.setAttribute('data-reg', o[0]);
-        b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pm') ME.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pes-fer') PE.abrirPedir('FERIAS', { daFolha: true }); else if (o[0] === 'pes-falta') PE.abrirPedir('', { daFolha: true }); else if (o[0] === 'pes-desp') PE.abrirDespesa({ daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
+        b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pm') ME.abrirForm(obraHoje(), { daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
         cc.appendChild(b);
       });
-      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ME && ME.disponivel() ? [] : ['material'], ['entrega'], quemVe().pessoal && !despOk ? ['despesa'] : []);   // a despesa é do Pessoal: a conta só de telemóvel não a tem (Pessoal, F0)
+      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ME && ME.disponivel() ? [] : ['material'], ['entrega']);   // a despesa é do Pessoal (separador próprio), não do «+»
       if (c.externa) emb = [];   // revisão da parte 4: uma conta externa não chega a nada da fatia 2 (contrato): não se lhe promete
       if (emb.length) cc.appendChild(el('p', 'mv-folha-txt mv-embreve-f', 'Em breve: ' + (emb.length > 1 ? emb.slice(0, -1).join(', ') + ' e ' : '') + emb[emb.length - 1] + '.'));
     } });
