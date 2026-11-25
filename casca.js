@@ -22,6 +22,7 @@
   var A = null;                                   // a ponte para app.js
   var TE = null;                                  // os ecrãs dos trabalhos em falta (trabalhos-ecra.js, fatia 2a); sem eles, o bloco Trabalhos abre os números
   var BE = null;                                  // os ecrãs dos bloqueios do cliente (bloqueios-ecra.js, fatia 2a, parte 3)
+  var ME = null;                                  // os ecrãs dos pedidos de material (material-ecra.js, fatia 2b, entrega 1, 24 nov 2026); sem eles, o bloco Material fica «Em breve»
   var PE = null;                                  // os ecrãs do Pessoal, só para ler (pessoal-ecra.js, Pessoal F1, 16 nov 2026); sem eles, o separador fica «Em breve»
   var LS_CACHE = 'doeMovel.cache', LS_OBRA_HOJE = 'doeMovel.obraHoje', LS_PESSOAL = 'doeMovel.pessoal', DB_NOME = 'doeMovelDiario', STORE = 'fila';
   var ESPERAS_LER = self.DOE_MOVEL_ESPERAS_LER || [5000, 30000, 120000];   // (os testes encurtam-nas)
@@ -261,14 +262,14 @@
   }
 
   // ── Navegação: uma pilha de ecrãs, com o «voltar» do telemóvel (history) ──
-  function ehCasca(v) { return v === 'v-hoje' || v === 'v-obras' || v === 'v-conta' || v === 'v-obra-ler' || v === 'v-diario' || v === 'v-dia-envio' || v === 'v-diario7' || v === 'v-fila' || !!(TE && TE.VISTAS.indexOf(v) >= 0) || !!(BE && BE.VISTAS.indexOf(v) >= 0) || !!(PE && PE.VISTAS.indexOf(v) >= 0); }
+  function ehCasca(v) { return v === 'v-hoje' || v === 'v-obras' || v === 'v-conta' || v === 'v-obra-ler' || v === 'v-diario' || v === 'v-dia-envio' || v === 'v-diario7' || v === 'v-fila' || !!(TE && TE.VISTAS.indexOf(v) >= 0) || !!(BE && BE.VISTAS.indexOf(v) >= 0) || !!(ME && ME.VISTAS.indexOf(v) >= 0) || !!(PE && PE.VISTAS.indexOf(v) >= 0); }
   /** Um ecrã de formulário ou de «Registado» só volta (voltar, entrar outra vez) se ainda houver o que mostrar. */
-  function vistaViva(v) { return (v !== 'v-obra-ler' || !!c.obraLer) && (v !== 'v-tf-form' || !!(TE && TE.temForm())) && (v !== 'v-tf-envio' || !!(TE && TE.temEnvio())) && (v !== 'v-bc-form' || !!(BE && BE.temForm())) && (v !== 'v-bc-envio' || !!(BE && BE.temEnvio())) && (!(PE && PE.VISTAS.indexOf(v) >= 0) || pessoalAtivo()) && (v !== 'v-pes-form' || !!(PE && PE.temForm())) && (v !== 'v-pes-feito' || !!(PE && PE.temFeito())) && (v !== 'v-pes-desp-form' || !!(PE && PE.temDespForm && PE.temDespForm())); }
+  function vistaViva(v) { return (v !== 'v-obra-ler' || !!c.obraLer) && (v !== 'v-tf-form' || !!(TE && TE.temForm())) && (v !== 'v-tf-envio' || !!(TE && TE.temEnvio())) && (v !== 'v-bc-form' || !!(BE && BE.temForm())) && (v !== 'v-bc-envio' || !!(BE && BE.temEnvio())) && (v !== 'v-pm-form' || !!(ME && ME.temForm())) && (!(PE && PE.VISTAS.indexOf(v) >= 0) || pessoalAtivo()) && (v !== 'v-pes-form' || !!(PE && PE.temForm())) && (v !== 'v-pes-feito' || !!(PE && PE.temFeito())) && (v !== 'v-pes-desp-form' || !!(PE && PE.temDespForm && PE.temDespForm())); }
   function mostrar(v) {
     if (v !== c.vista) tirarToast();
     c.vista = v;
     A.ir(v);
-    if (v === 'v-hoje') desenharHoje(); else if (v === 'v-obras') desenharObras(); else if (v === 'v-conta') desenharConta(); else if (v === 'v-obra-ler') desenharObraLer(); else if (v === 'v-diario') desenharDiario(true); else if (v === 'v-dia-envio') desenharDiaEnvio(); else if (v === 'v-diario7') desenharDiario7(); else if (v === 'v-fila') desenharFila(); else if (TE && TE.VISTAS.indexOf(v) >= 0) TE.desenhar(v); else if (BE && BE.VISTAS.indexOf(v) >= 0) BE.desenhar(v); else if (PE && PE.VISTAS.indexOf(v) >= 0) PE.desenhar(v);
+    if (v === 'v-hoje') desenharHoje(); else if (v === 'v-obras') desenharObras(); else if (v === 'v-conta') desenharConta(); else if (v === 'v-obra-ler') desenharObraLer(); else if (v === 'v-diario') desenharDiario(true); else if (v === 'v-dia-envio') desenharDiaEnvio(); else if (v === 'v-diario7') desenharDiario7(); else if (v === 'v-fila') desenharFila(); else if (TE && TE.VISTAS.indexOf(v) >= 0) TE.desenhar(v); else if (BE && BE.VISTAS.indexOf(v) >= 0) BE.desenhar(v); else if (ME && ME.VISTAS.indexOf(v) >= 0) ME.desenhar(v); else if (PE && PE.VISTAS.indexOf(v) >= 0) PE.desenhar(v);
     desenharNav();
     var t = document.querySelector('#' + v + ' [data-foco-inicial]'); if (t) A.focar(t);
   }
@@ -427,6 +428,7 @@
     if (tem('diario')) ops.push(['diario', 'diario', 'Diário de obra', 'Homens, trabalhos e fotos do dia']);
     if (TE && TE.disponivel()) ops.push(['tf', 'falta', 'Trabalho em falta', 'Foto, o que falta e onde']);
     if (BE && BE.disponivel()) ops.push(['bc', 'obra', 'Bloqueio do cliente', 'O que precisamos do cliente, foto e onde']);
+    if (ME && ME.disponivel()) ops.push(['pm', 'caixa', 'Pedir material', 'O que precisas e até quando']);   // fatia 2b, entrega 1 (24 nov 2026)
     if (PE && quemVe().pessoal && PE.podeEscrever()) { ops.push(['pes-fer', 'cal', 'Pedir férias', 'Os dias úteis contam-se sozinhos']); ops.push(['pes-falta', 'falta', 'Falta ou ausência', 'Também teletrabalho, out of office e visitas a clientes']); }   // Pessoal, F2
     var despOk = !!(PE && quemVe().pessoal && PE.despPodeEscrever && PE.despPodeEscrever());
     if (despOk) ops.push(['pes-desp', 'etiqueta', 'Despesa', 'Valor, categoria e onde imputar']);   // Pessoal, F3
@@ -437,10 +439,10 @@
         if (o[0] === 'diario') { var e = estadoDiarioHoje(obraHoje()); if (!aceitaNovo(obraHoje(), hojeDia().dia) && !e.meu && !e.pend && !e.rascunho) extra = el('span', 'mv-rasc neu', 'Fechado'); else if (e.anulando) extra = el('span', 'mv-rasc', 'Anulado, por enviar'); else if (e.rascunho) extra = el('span', 'mv-rasc', 'Rascunho'); else if (e.pend) extra = el('span', 'mv-rasc', 'Por enviar'); else if (e.meu) extra = el('span', 'mv-rasc neu', 'Feito'); }
         if ((o[0] === 'tf' && TE.temRascunho()) || (o[0] === 'bc' && BE.temRascunho())) extra = el('span', 'mv-rasc', 'Rascunho');   // fecho da 2a: o «+» continua-o
         var b = linhaOp(o[1], o[2], o[3], extra); b.setAttribute('data-reg', o[0]);
-        b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pes-fer') PE.abrirPedir('FERIAS', { daFolha: true }); else if (o[0] === 'pes-falta') PE.abrirPedir('', { daFolha: true }); else if (o[0] === 'pes-desp') PE.abrirDespesa({ daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
+        b.addEventListener('click', function () { A.fecharFolhas(true); if (o[0] === 'ocorrencia') abrir('v-registo', false, true); else if (o[0] === 'tf') TE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'bc') BE.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pm') ME.abrirForm(obraHoje(), { daFolha: true }); else if (o[0] === 'pes-fer') PE.abrirPedir('FERIAS', { daFolha: true }); else if (o[0] === 'pes-falta') PE.abrirPedir('', { daFolha: true }); else if (o[0] === 'pes-desp') PE.abrirDespesa({ daFolha: true }); else abrirDiario(obraHoje(), false, true); });   // o ecrã fica no lugar da entrada da folha (abrirDeFolha do protótipo)
         cc.appendChild(b);
       });
-      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ['material', 'entrega'], quemVe().pessoal && !despOk ? ['despesa'] : []);   // a despesa é do Pessoal: a conta só de telemóvel não a tem (Pessoal, F0)
+      var emb = (TE && TE.disponivel() ? [] : ['trabalho em falta']).concat(BE && BE.disponivel() ? [] : ['bloqueio do cliente'], ME && ME.disponivel() ? [] : ['material'], ['entrega'], quemVe().pessoal && !despOk ? ['despesa'] : []);   // a despesa é do Pessoal: a conta só de telemóvel não a tem (Pessoal, F0)
       if (c.externa) emb = [];   // revisão da parte 4: uma conta externa não chega a nada da fatia 2 (contrato): não se lhe promete
       if (emb.length) cc.appendChild(el('p', 'mv-folha-txt mv-embreve-f', 'Em breve: ' + (emb.length > 1 ? emb.slice(0, -1).join(', ') + ' e ' : '') + emb[emb.length - 1] + '.'));
     } });
@@ -618,6 +620,8 @@
   // Protótipos validados: DOEX-Telemovel-App-Prototipo.html (o Hoje em Mosaico) e DOEX-Telemovel-Hoje-Todas-as-Obras-
   // Prototipo.html (variante D). Um bloco que o servidor manda a null nunca mostra números: fica «Em breve».
   function temHojeMv() { return !!H && tem('hoje') && !c.semHojeMv; }
+  /** O bloco Material da soma do Hoje (várias obras): a faixa «por decidir» / «chega hoje» do Geral (fatia 2b, entrega 1). */
+  function somaMaterial() { var p = H ? H.copiaDe(cache(), 'todas') : null; return p && p.data && p.data.soma ? p.data.soma.material || null : null; }
   function obrasTodas() { var p = H ? H.copiaDe(cache(), 'todas') : null; return p ? (p.data.obras || []) : null; }
   /** 'f1' (o Hoje da fatia 1), 'uma' (uma obra) ou 'varias' (Geral · Obras: quem tem duas ou mais das suas obras). */
   function modoHoje() { if (!temHojeMv()) return 'f1'; if (obras().length > 1) { var l = obrasTodas(); if (l && l.length >= 2) return 'varias'; } return 'uma'; }
@@ -714,7 +718,7 @@
     }
     var p0 = limpar($('hx-p0')), p1 = limpar($('hx-p1'));
     var fa = faixaAcaoMv(ms, true); if (fa) p0.appendChild(fa);
-    p0.appendChild(mosaicoMv({ trabalhos: soma.trabalhos || null, cliente: soma.cliente || null }, true, ms));
+    p0.appendChild(mosaicoMv({ trabalhos: soma.trabalhos || null, cliente: soma.cliente || null, material: soma.material || null }, true, ms));
     var sda = semDiarioAbertoEl(ms.map(function (x) { return x.id; })); if (sda) p0.appendChild(sda);
     var gr = el('div', 'mv-grupo hx-grupo-d'), h = el('div', 'hx-sec-h'); h.appendChild(el('h2', null, 'Por atenção')); h.appendChild(el('span', null, 'homens hoje')); gr.appendChild(h);
     ord.forEach(function (m) { gr.appendChild(linhaObraD(m)); });
@@ -859,8 +863,11 @@
       // o título do protótipo («Bloqueio do cliente por confirmar») encurtado: a 390 px cortava
       if (pc) acao = { ic: 'falta', t: 'Bloqueio por confirmar', s: 'Do cliente: ' + pc.precisa, b: 'Ver', bl: 'Ver e confirmar o bloqueio do cliente', fn: function () { BE.abrirBc(pc.id, m1.id); } };
     }
+    // Fatia 2b, entrega 1 (24 nov 2026): «N materiais por decidir» (só ao decisor; o servidor só lha dá a ele) e «Chega hoje».
+    // No Geral, a da soma (a primeira obra que a tem); dentro de uma obra, a dessa obra.
+    if (!acao && ME) acao = ME.faixa(geral ? somaMaterial() : ms[0].material, geral ? null : ms[0].id);
     if (!acao) return null;
-    var fa = el('div', 'mv-facao' + (acao.erro ? ' erro' : '')); fa.style.setProperty('--i', '0');
+    var fa = el('div', 'mv-facao' + (acao.erro ? ' erro' : (acao.nav ? ' nav' : ''))); fa.style.setProperty('--i', '0');
     var fi = el('span', 'mv-facao-ic'); fi.appendChild(ic(acao.ic)); fa.appendChild(fi);
     var ft = el('span', 'mv-facao-t'); ft.appendChild(el('b', null, acao.t)); ft.appendChild(el('small', null, acao.s)); fa.appendChild(ft);
     var fb = bt('mv-facao-b', acao.b); fb.setAttribute('aria-label', acao.bl); fb.setAttribute('data-k', 'acao'); fb.addEventListener('click', acao.fn); fa.appendChild(fb);
@@ -896,7 +903,8 @@
       bt2.addEventListener('click', function () { if (TE && TE.disponivel()) { if (geral) TE.folhaObras(ms); else TE.abrirLista(m.id); return; } folhaTrabalhos(geral ? m.trabalhos : m.trabalhos, sub, geral ? ms : null); });   // a lista por Localização (parte 2); sem ela, os números
       g.appendChild(bt2);
     } else emb.push(['trabalhos', 'falta', 'Trabalhos', 'Os trabalhos em falta']);
-    emb.push(['material', 'caixa', 'Material', 'O material pedido e as entregas em obra']);
+    var bm = ME && ME.disponivel() ? ME.bloco(m && m.material) : null;   // por vir, o Material fica onde sempre esteve entre os «Em breve»
+    if (!bm) emb.push(['material', 'caixa', 'Material', 'O material pedido e as entregas em obra']);
     if (cl) {
       var bc = blocoBase('cliente', 'obra', 'Cliente', cl.est, i++);
       bc.appendChild(el('span', 'mv-mos-n', cl.n)); bc.appendChild(el('span', 'mv-mos-c', cl.leg));
@@ -908,6 +916,15 @@
       });
       g.appendChild(bc);
     } else emb.push(['cliente', 'obra', 'Cliente', 'Os bloqueios do cliente']);
+    if (bm) {   // fatia 2b, entrega 1 (24 nov 2026): o bloco Material vivo, depois do Cliente (a ordem do protótipo)
+      var bk = blocoBase('material', 'caixa', 'Material', bm.est, i++);
+      bk.appendChild(el('span', 'mv-mos-n', bm.n)); bk.appendChild(el('span', 'mv-mos-c', bm.leg));
+      var zm = el('span', 'mv-mos-v pm-perc');
+      bm.perc.forEach(function (x) { var r = el('span', (x[0] ? x[0] : '') + (x[2] ? '' : ' zero')); r.appendChild(el('i')); r.appendChild(document.createTextNode(x[1])); r.appendChild(el('b', null, String(x[2]))); zm.appendChild(r); });
+      bk.appendChild(zm); bk.setAttribute('aria-label', bm.aria);
+      bk.addEventListener('click', function () { if (geral) ME.folhaObras(ms); else ME.abrirLista(m.id); });
+      g.appendChild(bk);
+    }
     emb.forEach(function (e) {
       var be = blocoBase(e[0], e[1], e[2], '', i++); be.classList.add('embreve'); be.setAttribute('aria-disabled', 'true');
       be.appendChild(el('span', 'mv-mos-c', 'Em breve')); be.setAttribute('aria-label', e[2] + ': em breve');
@@ -1636,7 +1653,7 @@
           par ? [] : [['atual', 'Tentar agora', function () { if (!A.sessaoValida()) { A.pedirLogin('Entra outra vez: o que tens por enviar segue logo a seguir.'); return; } drenar(true); }]], saiu ? null : function () { apagarDaFila(q); });
         return;
       }
-      if (q.tipo === 'tf' || q.tipo === 'bc' || q.tipo === 'aus' || q.tipo === 'desp') { var E = q.tipo === 'tf' ? TE : (q.tipo === 'bc' ? BE : PE); if (!E) return; var L = E.linhaFila(q, c.emCurso && c.atual === q.id); linha(L.ic, L.titulo, L.resumo, L.estado, L.cls, L.acoes, L.apagar ? function () { apagarDaFila(q); } : null); return; }   // os trabalhos em falta e os bloqueios do cliente (trabalhos-ecra.js, bloqueios-ecra.js)
+      if (q.tipo === 'tf' || q.tipo === 'bc' || q.tipo === 'pm' || q.tipo === 'aus' || q.tipo === 'desp') { var E = q.tipo === 'tf' ? TE : (q.tipo === 'bc' ? BE : (q.tipo === 'pm' ? ME : PE)); if (!E) return; var L = E.linhaFila(q, c.emCurso && c.atual === q.id); linha(L.ic, L.titulo, L.resumo, L.estado, L.cls, L.acoes, L.apagar ? function () { apagarDaFila(q); } : null); return; }   // os trabalhos em falta e os bloqueios do cliente (trabalhos-ecra.js, bloqueios-ecra.js)
       var o = obraDe(q.obraId), parado = q.estado === 'parado', emCurso = c.emCurso && c.atual === q.id;
       var est = parado ? (q.erro || 'Não entrou') : (emCurso ? 'A enviar…' : (!A.sessaoValida() ? 'À espera de entrares' : (!online() ? 'À espera de rede' : (q.erro || 'Na fila'))));
       var acoes;
@@ -1653,7 +1670,7 @@
   }
   function apagarDaFila(q) {
     c.fila = c.fila.filter(function (x) { return x !== q; }); c.apagar[q.id] = true; desenharFila(); desenharHojeSeVisivel();
-    toast(q.tipo === 'desp' ? 'Apagado · ' + (self.DoeMovelDesp ? self.DoeMovelDesp.tituloItem(q).toLowerCase() : 'despesa') : q.tipo === 'aus' ? 'Apagado · ' + (self.DoeMovelAus ? self.DoeMovelAus.tituloItem(q).toLowerCase() : 'pedido do Pessoal') : q.tipo === 'tf' ? 'Apagado · ' + (self.DoeMovelTf ? self.DoeMovelTf.tituloItem(q).toLowerCase() : 'trabalho em falta') : (q.tipo === 'bc' ? 'Apagado · ' + (self.DoeMovelBc ? self.DoeMovelBc.tituloItem(q).toLowerCase() : 'bloqueio do cliente') : (q.tipo === 'diario-cmd' ? 'Apagado · ' + D.resumoComandoDiario(q).toLowerCase() : 'Apagado · diário de ' + D.textoDiaMes(q.dia))), { desfazer: function () { delete c.apagar[q.id]; c.fila.push(q); desenharFila(); }, aoFim: function () { if (c.apagar[q.id]) { delete c.apagar[q.id]; apagarItem(q.id); } } });
+    toast(q.tipo === 'pm' ? 'Apagado · ' + (self.DoeMovelPm ? self.DoeMovelPm.tituloItem(q).toLowerCase() : 'pedido de material') : q.tipo === 'desp' ? 'Apagado · ' + (self.DoeMovelDesp ? self.DoeMovelDesp.tituloItem(q).toLowerCase() : 'despesa') : q.tipo === 'aus' ? 'Apagado · ' + (self.DoeMovelAus ? self.DoeMovelAus.tituloItem(q).toLowerCase() : 'pedido do Pessoal') : q.tipo === 'tf' ? 'Apagado · ' + (self.DoeMovelTf ? self.DoeMovelTf.tituloItem(q).toLowerCase() : 'trabalho em falta') : (q.tipo === 'bc' ? 'Apagado · ' + (self.DoeMovelBc ? self.DoeMovelBc.tituloItem(q).toLowerCase() : 'bloqueio do cliente') : (q.tipo === 'diario-cmd' ? 'Apagado · ' + D.resumoComandoDiario(q).toLowerCase() : 'Apagado · diário de ' + D.textoDiaMes(q.dia))), { desfazer: function () { delete c.apagar[q.id]; c.fila.push(q); desenharFila(); }, aoFim: function () { if (c.apagar[q.id]) { delete c.apagar[q.id]; apagarItem(q.id); } } });
   }
 
   // ── Conta (24 nov 2026; redesenho do Pessoal, direcção A, decisão do Pedro) ──
@@ -1938,7 +1955,7 @@
         var agoraIso = new Date().toISOString();
         // um trabalho ou bloqueio não espera por um parado do mesmo registo (2.ª revisão: cada comando decide-se no servidor pelo estado de agora); um diário sim
         var q = c.fila.filter(function (x) { return x.estado === 'a-enviar' && x.contaId === conta && !c.apagar[x.id] && !feitos[x.id] && !bloqueados[x.registoId] && !(x.adiadoAte && x.adiadoAte > agoraIso)   // adiadoAte: o comando com Desfazer só segue depois do aviso
-          && !(x.tipo === 'tf' && !(TE && TE.disponivel())) && !(x.tipo === 'bc' && !(BE && BE.disponivel()))   // revisão da parte 4: sem a funcionalidade (Edge recuada), ficam; os diários seguem
+          && !(x.tipo === 'tf' && !(TE && TE.disponivel())) && !(x.tipo === 'bc' && !(BE && BE.disponivel())) && !(x.tipo === 'pm' && !(ME && ME.disponivel()))   // revisão da parte 4: sem a funcionalidade (Edge recuada), ficam; os diários seguem
           && !(x.tipo === 'aus' && (!(PE && PE.ausDisponivel()) || PE.retido(x)))   // Pessoal, F2: sem `ausencias` (Edge recuada) ficam; o que se está a mudar no formulário espera
           && !(x.tipo === 'desp' && (!(PE && PE.despDisponivel && PE.despDisponivel()) || PE.retido(x)))   // Pessoal, F3: o mesmo com `despesas`
           // revisão (C1): só um DIÁRIO parado faz esperar o diário seguinte do mesmo registo; um comando decide-se pelo estado de agora
@@ -1948,11 +1965,12 @@
         if (!q || contaId() !== conta) break;
         c.atual = q.id; desenharFilaSeVisivel();
         var tk = A.token();
-        var res = q.tipo === 'tf' ? (TE ? await TE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'bc' ? (BE ? await BE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'aus' || q.tipo === 'desp' ? (PE ? await PE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'diario-cmd' ? await D.processarComandoDiario(q, deps()) : await D.processarDiario(q, deps()))));
+        var res = q.tipo === 'tf' ? (TE ? await TE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'bc' ? (BE ? await BE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'pm' ? (ME ? await ME.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'aus' || q.tipo === 'desp' ? (PE ? await PE.processar(q) : { estado: 'pendente', mensagem: '' }) : (q.tipo === 'diario-cmd' ? await D.processarComandoDiario(q, deps()) : await D.processarDiario(q, deps())))));
         c.atual = '';
         if (res.estado === 'login' && res.revogado && A.token() && A.token() !== tk && repete < 2) { repete++; continue; }   // B2: a palavra-passe mudou a meio: repete com o token novo
         if (q.tipo === 'tf') { if (TE) await TE.aoResultado(q, res); if (BE) BE.aoTrabalho(q, res); }   // um trabalho desbloqueado sai do bloqueio do cliente
         else if (q.tipo === 'bc') { if (BE) await BE.aoResultado(q, res); }
+        else if (q.tipo === 'pm') { if (ME) await ME.aoResultado(q, res); }   // fatia 2b, entrega 1
         else if (q.tipo === 'aus' || q.tipo === 'desp') { if (PE) await PE.aoResultado(q, res); }   // Pessoal, F2 e F3
         else if (q.tipo === 'diario-cmd') await aoComandoDiario(q, res);   // anular e tirar uma foto (13 nov 2026)
         else if (c.envio && c.envio.item.id === q.id) {
@@ -1962,7 +1980,7 @@
         } else if (res.estado === 'entregue') toast('Diário de ' + D.textoDiaMes(q.dia) + (obraDe(q.obraId) ? ' · ' + obraDe(q.obraId).codigo : '') + ': enviado', { ms: 3500 });
         if (res.estado === 'entregue') { c.fila = c.fila.filter(function (x) { return x !== q; }); apagarItem(q.id); c.tentativas = 0; continue; }
         if (res.estado === 'login') { parou = 'login'; talvezLogin({ accao: 'login', texto: res.mensagem, revogado: res.revogado }); break; }
-        if (res.estado === 'pendente') { feitos[q.id] = true; if (q.tipo !== 'diario-cmd') bloqueados[q.registoId] = true; q.erro = res.rede ? '' : (res.mensagem || ''); guardarItem(q); if (res.rede || (res.longo && !res.contrato && q.tipo !== 'tf' && q.tipo !== 'bc' && q.tipo !== 'aus' && q.tipo !== 'desp' && q.tipo !== 'diario-cmd')) { parou = res; break; } parou = parou || res; continue; }   // rede: os outros também falhavam; senão segue para o próximo (um trabalho ou bloqueio com o servidor por preparar ou recuado não prende os diários)
+        if (res.estado === 'pendente') { feitos[q.id] = true; if (q.tipo !== 'diario-cmd') bloqueados[q.registoId] = true; q.erro = res.rede ? '' : (res.mensagem || ''); guardarItem(q); if (res.rede || (res.longo && !res.contrato && q.tipo !== 'tf' && q.tipo !== 'bc' && q.tipo !== 'pm' && q.tipo !== 'aus' && q.tipo !== 'desp' && q.tipo !== 'diario-cmd')) { parou = res; break; } parou = parou || res; continue; }   // rede: os outros também falhavam; senão segue para o próximo (um trabalho ou bloqueio com o servidor por preparar ou recuado não prende os diários)
         feitos[q.id] = true; if (q.tipo === 'diario') bloqueados[q.registoId] = true;   // parado (dia fechado, obra, recusa): fica com o motivo e segue (os outros registos; num trabalho ou bloqueio, também os seguintes dele)
       }
     } finally { c.emCurso = false; c.atual = ''; }
@@ -1999,14 +2017,14 @@
   function antesDoLogin() { var v = A.vista(); if (v && v !== 'v-login') c.antes = v; gravarRascunhoJa(); }   // o rascunho a meio grava-se já (com a conta de agora)
   function depoisDoLogin(contaMudou) {
     c.semHojeMv = false; c.externa = false; c.funcsHoje = null; c.recusaHoje = ''; if (PE) PE.aoSair();   // a sessão nova traz as funcionalidades do servidor de agora (também o Pessoal)
-    if (contaMudou) { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); c.cache = null; c.form = null; c.envio = null; c.lidoMs = 0; c.obraHoje = ''; c.antes = ''; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }   // 2.ª revisão: também o formulário, o envio e o «fora» dos trabalhos e bloqueios
+    if (contaMudou) { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (ME) ME.aoSair(); c.cache = null; c.form = null; c.envio = null; c.lidoMs = 0; c.obraHoje = ''; c.antes = ''; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }   // 2.ª revisão: também o formulário, o envio e o «fora» dos trabalhos e bloqueios
     var v = c.antes; c.antes = '';
     if (v === 'v-registo' || v === 'v-envio') { c.pilha = ['v-hoje', 'v-registo']; try { history.replaceState({ mvV: 'v-registo', n: 2 }, ''); } catch (e) { /* nada */ } c.vista = 'v-registo'; A.abrirOcorrencia(); desenharNav(); }   // M7: volta ao formulário da ocorrência
     else if (v && ehCasca(v) && (v !== 'v-diario' || c.form) && (v !== 'v-dia-envio' || c.envio) && vistaViva(v)) mostrar(v);
     else abrirInicial();
     ler(true); drenar(true);
   }
-  function aoSair() { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (PE) PE.aoSair(); c.funcsHoje = null; c.recusaHoje = ''; clearTimeout(c.timer); clearTimeout(c.timerAdiado); gravarRascunhoJa(); apagarCache(); c.pilha = []; c.vista = ''; c.entrou = false; c.semHojeMv = false; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }
+  function aoSair() { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (ME) ME.aoSair(); if (PE) PE.aoSair(); c.funcsHoje = null; c.recusaHoje = ''; clearTimeout(c.timer); clearTimeout(c.timerAdiado); gravarRascunhoJa(); apagarCache(); c.pilha = []; c.vista = ''; c.entrou = false; c.semHojeMv = false; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }
   async function ligar(ponte) {
     A = ponte;
     c.store = await abrirStore(); c.memoria = !!c.store.memoria;
@@ -2017,13 +2035,14 @@
       if (!r) return;
       if (r.tipo === 'diario-rascunho') { if (!r.mexidos || String(r.dia) < limiteRasc) { apagarItem(r.id); return; } c.rascunhos[r.id] = r; return; }   // mais de 7 dias (ou do formato antigo): sai, com as fotos
       if (r.tipo === 'tf-rascunho' || r.tipo === 'bc-rascunho') { rascF.push(r); return; }   // os dos formulários (fecho da 2a): ficam com os ecrãs deles
-      if (r.tipo !== 'diario' && r.tipo !== 'diario-cmd' && r.tipo !== 'tf' && r.tipo !== 'bc' && r.tipo !== 'aus' && r.tipo !== 'desp') return;   // 'diario-cmd': anular e tirar uma foto do diário (13 nov 2026); 'aus': os pedidos de férias e faltas (Pessoal, F2, 17 nov 2026); 'desp': as despesas (Pessoal, F3, 23 nov 2026)   // (numa base partilhada, como a dos testes, há também as ocorrências: não são daqui; 'tf' = os trabalhos em falta, 'bc' = os bloqueios do cliente)
+      if (r.tipo !== 'diario' && r.tipo !== 'diario-cmd' && r.tipo !== 'tf' && r.tipo !== 'bc' && r.tipo !== 'pm' && r.tipo !== 'aus' && r.tipo !== 'desp') return;   // 'diario-cmd': anular e tirar uma foto do diário (13 nov 2026); 'aus': os pedidos de férias e faltas (Pessoal, F2, 17 nov 2026); 'desp': as despesas (Pessoal, F3, 23 nov 2026)   // (numa base partilhada, como a dos testes, há também as ocorrências: não são daqui; 'tf' = os trabalhos em falta, 'bc' = os bloqueios do cliente)
       if (r.estado === 'entregue') { apagarItem(r.id); return; }
       c.fila.push(r);
     });
     c.rotaInicial = rotaDoEndereco();
     if (self.DoeMovelTfEcra) { TE = self.DoeMovelTfEcra.criar(kitTf()); TE.ligar(); TE.carregarRascunhos(rascF); Object.assign(ROTULO, TE.ROTULO); Object.assign(TITULO, TE.TITULO); }
     if (self.DoeMovelBcEcra) { BE = self.DoeMovelBcEcra.criar(kitTf()); BE.ligar(); BE.carregarRascunhos(rascF); Object.assign(ROTULO, BE.ROTULO); Object.assign(TITULO, BE.TITULO); }
+    if (self.DoeMovelPmEcra) { ME = self.DoeMovelPmEcra.criar(kitTf()); Object.assign(ROTULO, ME.ROTULO); Object.assign(TITULO, ME.TITULO); }   // fatia 2b, entrega 1 (24 nov 2026)
     if (self.DoeMovelPesEcra) { PE = self.DoeMovelPesEcra.criar(Object.assign(kitTf(), { funcsPessoal: funcsPessoal, desenharNav: desenharNav, voltar: voltar, irPessoal: irPessoal, contaTopo: contaTopo, seccaoConta: seccaoConta })); Object.assign(ROTULO, PE.ROTULO); Object.assign(TITULO, PE.TITULO); }   // Pessoal, F1
     window.addEventListener('popstate', aoVoltarHist);
     window.addEventListener('online', function () { c.tentativas = 0; c.falhasLer = 0; if (c.vista === 'v-obra-ler' && c.obraLer && !c.obraLer.o && !c.obraLer.lendo) lerObraLer(); redesenhar(); if (PE) PE.aoMudarRede(); if (c.vista === 'v-diario') desenharBarraDia(); if (tem('diario') && A.sessaoValida()) ler(true); else drenar(false); });   // 3.ª revisão: primeiro LER (o contrato), a fila segue no fim da leitura
@@ -2053,7 +2072,7 @@
       novoId: function () { return M.novoId(); }, guardarItem: guardarItem, apagarItem: apagarItem, semArmazem: semArmazem,
       fila: function () { return c.fila; }, porNaFila: function (q) { c.fila.push(q); }, soltarConflitos: soltarConflitos, tirarDaFila: function (q) { c.fila = c.fila.filter(function (x) { return x !== q; }); }, apagar: c.apagar,
       drenar: drenar, talvezLogin: talvezLogin, largarToastDe: largarToastDe, vista: function () { return c.vista; }, lerLocsAgora: lerLocsAgora, seccao: seccao, rlinha: rlinha, barra20: barra20,
-      marcarReler: function () { c.lidoMs = 0; }, tf: function () { return TE; }, bc: function () { return BE; }, redesenharHoje: desenharHojeSeVisivel };
+      marcarReler: function () { c.lidoMs = 0; }, tf: function () { return TE; }, bc: function () { return BE; }, pm: function () { return ME; }, redesenharHoje: desenharHojeSeVisivel };
   }
   self.DoeMovelCasca = {
     ligar: ligar, abrirInicial: abrirInicial, antesDoLogin: antesDoLogin, depoisDoLogin: depoisDoLogin, aoSair: aoSair,

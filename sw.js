@@ -7,17 +7,17 @@
    sempre: ao tocar (ou ao reabrir a página com todas as janelas fechadas) a versão nova assume e a velha apaga-se.
    Nunca guarda pedidos à API nem ao Storage (outra origem: nem sequer os intercepta) e nunca guarda uma resposta
    que não seja 200.
-   VERSAO = resumo dos 25 ficheiros acima (movel/versao.js). Mudar um ficheiro da página SEM subir a versão faz o
+   VERSAO = resumo dos 27 ficheiros acima (movel/versao.js). Mudar um ficheiro da página SEM subir a versão faz o
    teste falhar: sem isso os telemóveis ficavam com a página velha. Sobe-se com: node movel/versao.js --escrever */
 'use strict';
-var VERSAO = 'a679a217915f';
+var VERSAO = '5d282884af3f';
 var PREFIXO = 'doe-movel-';
 // 14 nov 2026 (o repositório passa a `doex`): a app antiga (/doe-ocorrencias/) e a doex (/doex/) vivem na MESMA origem e,
 // com a mesma versão, partilhavam a cache. Agora o nome leva o âmbito; as caches antigas sem âmbito (`doe-movel-<versão>`)
 // não se apagam inteiras: tira-se delas só o que é deste âmbito (a outra app continua a abrir pela sua).
 var AMBITO = new URL('./', self.location.href).href;
 var CACHE = PREFIXO + VERSAO + '@' + new URL(AMBITO).pathname;
-var FICHEIROS = ['./', 'index.html', 'app.js', 'logica.js', 'diario.js', 'hoje.js', 'trabalhos.js', 'trabalhos-ecra.js', 'bloqueios.js', 'bloqueios-ecra.js', 'pessoal.js', 'ausencias.js', 'despesas.js', 'pessoal-ecra.js', 'casca.js', 'config.js', 'classificacao.js', 'feriados.js', 'icones.js', 'estilo.css', 'manifest.webmanifest', 'logo-doex.png', 'logo-doex-escuro.png', 'icone-180.png', 'icone-192.png', 'icone-512.png'];
+var FICHEIROS = ['./', 'index.html', 'app.js', 'logica.js', 'diario.js', 'hoje.js', 'trabalhos.js', 'trabalhos-ecra.js', 'bloqueios.js', 'bloqueios-ecra.js', 'material.js', 'material-ecra.js', 'pessoal.js', 'ausencias.js', 'despesas.js', 'pessoal-ecra.js', 'casca.js', 'config.js', 'classificacao.js', 'feriados.js', 'icones.js', 'estilo.css', 'manifest.webmanifest', 'logo-doex.png', 'logo-doex-escuro.png', 'icone-180.png', 'icone-192.png', 'icone-512.png'];
 
 function urlDe(f) { return new URL(f, self.location.href).href; }
 function semPesquisa(u) { var x = new URL(u); x.search = ''; x.hash = ''; return x.href; }

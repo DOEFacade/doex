@@ -42,6 +42,7 @@ self.DOE_MOVEL_ICONES = {
     chave: [['circle',{cx:'8',cy:'15.5',r:'4'}],['path',{d:'M10.9 12.6l8.6-8.6M16.5 7l2.5 2.5M14 9.5l2 2'}]],
     // 12 nov 2026, o Hoje da fatia 2a (protótipo DOEX-Telemovel-App-Prototipo.html): trabalhos em falta, material
     falta: [['rect',{x:'5.5',y:'4.5',width:'13',height:'16',rx:'2'}],['path',{d:'M9 4.5V3h6v1.5M12 9v5M12 17v.1'}]],
+    camiao: [['path',{d:'M2 6h11v10H2zM13 9h4l4 4v3h-8'}],['circle',{cx:'6',cy:'17.5',r:'1.8'}],['circle',{cx:'17',cy:'17.5',r:'1.8'}]],   // fatia 2b, entrega 1: «Chega hoje» (o do protótipo dos pedidos de material)
     caixa: [['path',{d:'M3.5 8L12 4l8.5 4v8.5L12 20.5 3.5 16.5z'}],['path',{d:'M3.5 8L12 12l8.5-4M12 12v8.5'}]],
   },
   produto: {
