@@ -234,7 +234,7 @@
       if (ac.length) { var a = botao('pri', ac.length > 1 ? 'Aceitar tudo (' + ac.length + ')' : 'Aceitar ' + ac[0].texto, function () { K.fecharFolha(); comando(p, 'aceitar', { linhas: ac.map(function (l) { return l.n; }) }, ac.length > 1 ? pl(ac.length, 'material aceite', 'materiais aceites') : 'Aceite · ' + ac[0].texto); }, 'ok'); a.id = 'b-pm-aceitar'; pe.appendChild(a); }
       else if (rc.length) { var r = botao('pri', 'Recebi tudo o que chegou (' + rc.length + ')', function () { K.fecharFolha(); comando(p, 'recebi', { linhas: rc.map(function (l) { return l.n; }) }, pl(rc.length, 'material recebido', 'materiais recebidos')); }, 'ok'); r.id = 'b-pm-recebi'; pe.appendChild(r); }
       var txt = ac.length ? '✕ numa linha pede o motivo. O DO vê o pedido, mas não decide.'
-        : (rc.length ? 'Desfazer durante 5 s; depois, no próprio pedido.' : ((p.linhas || []).some(function (l) { return l.estado === 'ACEITE'; }) ? '«A caminho» e a data marca-os o Aprovisionamento ou a GP, no computador.' : (P.aberto(p) ? 'À espera da decisão da GP.' : 'Fechado.')));
+        : (rc.length ? 'Desfazer durante 5 s; depois, no próprio pedido.' : ((p.linhas || []).some(function (l) { return l.estado === 'ACEITE'; }) ? '«A caminho», a data e de onde vem marca-os a GP, no computador.' : (P.aberto(p) ? 'À espera da decisão da GP.' : 'Fechado.')));
       pe.appendChild(el('small', 'mv-folha-txt mv-folha-txt-0', txt));
     }
     /** Recusar (uma linha pedida) ou cancelar (uma aceite ou a caminho que não vem; revisão de 24 nov): o motivo em frases de um

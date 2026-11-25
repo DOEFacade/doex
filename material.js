@@ -9,8 +9,8 @@
    - o texto perigoso recusa-se AQUI, antes de entrar na fila (revisão, 14): os mesmos padrões do servidor
      (ocorrenciaEntrada.js › PADROES_PERIGOSOS, paridade em movel-material-dom.test.js); o servidor volta a recusá-lo;
    - a página NÃO tem regra de permissões própria: os botões de cada pedido e de cada linha são os do `pode` do servidor;
-   - o estado é POR LINHA (Pedido · Aceite · A caminho · Recebido, ou Recusado, ou Cancelado: a que não vem, cancelada pelo
-     Aprovisionamento ou pela GP, com motivo; revisão de 24 nov); «Atrasado» deriva-se pela regra do
+   - o estado é POR LINHA (Pedido · Aceite · A caminho · Recebido, ou Recusado, ou Cancelado: a que não vem, cancelada pela
+     GP, com motivo; revisão de 24 nov, só a GP desde 25 nov); «A caminho» mostra de onde vem (origemTexto, 25 nov); «Atrasado» deriva-se pela regra do
      servidor (atrasada, a mesma de regrasMaterial.js, conferida pela tabela partilhada); «Há um problema» é uma frase;
    - 409 TRANSICAO_INVALIDA: o pedido relê-se e diz-se em linguagem de obra o que mudou;
    - o que se lê guarda-se na cache da conta (cache.pm): sai ao Sair e com o token revogado. */
@@ -83,11 +83,22 @@
     var passo = PASSO[l.estado] || 0;
     if (atrasadaLinha(l, pa, hoje)) {
       var f = l.estado === 'A_CAMINHO' && l.chega && l.chega < hoje ? 'chegava ' + D.textoDiaMes(l.chega) : 'precisava até ' + D.textoDiaMes(pa);
+      if (l.estado === 'A_CAMINHO' && origemTexto(l)) f += ' · ' + origemTexto(l);
       return { p: 'Atrasado', c: 'neg-t', f: prob ? f + ' · ' + prob : f, passo: passo, tom: 'neg' };
     }
-    if (l.estado === 'A_CAMINHO') return { p: 'A caminho', c: 'ama-t', f: prob || (l.chega ? (l.chega === hoje ? 'chega hoje' : 'chega ' + D.textoDiaCurto(l.chega)) : 'sem data prevista'), passo: 2, tom: 'ama' };
+    if (l.estado === 'A_CAMINHO') return { p: 'A caminho', c: 'ama-t', f: prob || ((l.chega ? (l.chega === hoje ? 'chega hoje' : 'chega ' + D.textoDiaCurto(l.chega)) : 'sem data prevista') + (origemTexto(l) ? ' · ' + origemTexto(l) : '')), passo: 2, tom: 'ama' };
     if (l.estado === 'ACEITE') return { p: 'Aceite', c: 'nav-t', f: prob || (l.decidido && l.decidido.nome ? primeiro(l.decidido.nome) + (l.decidido.em ? ', ' + quando(l.decidido.em, hoje) : '') : 'aceite'), passo: 1, tom: '' };
     return { p: 'Pedido', c: 'neu-t', f: 'à espera da GP' + ((l.pode || []).indexOf('linha-editar') >= 0 ? ' · podes corrigir' : ''), passo: 0, tom: '' };
+  }
+  /** De onde vem uma linha «A caminho» (25 nov 2026, decisão do Pedro; o GP escolhe-a no computador): «Encomenda n.º OCV 26/120 ·
+      Vidraria Central» ou «Do stock». Só o n.º e o fornecedor (P13), nunca valores. '' sem origem (marcada antes de 25 nov). */
+  function origemTexto(l) {
+    var o = l && l.origem;
+    if (!o || typeof o !== 'object') return '';
+    if (o.tipo === 'STOCK') return 'Do stock';
+    if (o.tipo !== 'OC') return '';
+    var num = typeof o.num === 'string' ? o.num.trim() : '', forn = typeof o.fornecedor === 'string' ? o.fornecedor.trim() : '';
+    return (num ? 'Encomenda n.º ' + num : 'Encomenda das Compras') + (forn ? ' · ' + forn : '');
   }
   function quando(iso, hoje) { var d = T.diaDe(iso); if (!d) return ''; return d === hoje ? D.horaDe(iso) : D.textoDiaMes(d); }
   function nomeProblema(t) { var x = PROBLEMAS.filter(function (p) { return p[0] === t; })[0]; return x ? x[1] : 'Há um problema'; }
@@ -343,7 +354,7 @@
   return {
     LIMITES: LIMITES, UNIDADES: UNIDADES, UNIDADE_ROTULO: UNIDADE_ROTULO, PROBLEMAS: PROBLEMAS, MOTIVOS_RECUSA: MOTIVOS_RECUSA, MOTIVOS_CANCELA: MOTIVOS_CANCELA, POR_RECEBER: POR_RECEBER,
     PADROES_PERIGOSOS: PADROES_PERIGOSOS, textoPerigoso: textoPerigoso, avisoPerigoso: avisoPerigoso, textoJa: textoJa,
-    novoIdPm: novoIdPm, primeiro: primeiro, textoQtd: textoQtd, unidade: unidade, qtdUn: qtdUn, lerQtd: lerQtd, atrasadaLinha: atrasadaLinha, palavra: palavra,
+    novoIdPm: novoIdPm, primeiro: primeiro, textoQtd: textoQtd, unidade: unidade, qtdUn: qtdUn, lerQtd: lerQtd, atrasadaLinha: atrasadaLinha, palavra: palavra, origemTexto: origemTexto,
     nomeProblema: nomeProblema, aberto: aberto, contas: contas, filtrar: filtrar, cabecalho: cabecalho, textoParaQuem: textoParaQuem,
     linhaNova: linhaNova, formNovo: formNovo, opcoesPreciso: opcoesPreciso, faltaForm: faltaForm, camposCriar: camposCriar, sugestoes: sugestoes, juntarSugestao: juntarSugestao, passoQtd: passoQtd,
     guardarLista: guardarLista, listaDe: listaDe, porRegisto: porRegisto, OBRAS_NA_CACHE: OBRAS_NA_CACHE,

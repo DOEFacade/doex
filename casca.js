@@ -31,7 +31,7 @@
   var TITULO = { 'v-diario': 'Diário de obra', 'v-dia-envio': 'Diário de obra', 'v-diario7': 'Diário · 7 dias', 'v-fila': 'Por enviar', 'v-obras': 'Obras', 'v-conta': 'Conta', 'v-obra-ler': 'Obra' };
   var DESTINOS = ['v-hoje', 'v-obras', 'v-pessoal', 'v-conta'];   // os ecrãs com a barra de destinos e sem cabeçalho
   var c = { cache: null, fila: [], rascunhos: {}, vista: '', pilha: [], form: null, envio: null, lendo: false, lidoMs: 0, aviso: '', timer: null, emCurso: false, tentativas: 0, obraHoje: '', entrou: false, apagar: {}, rotaInicial: '', store: null, memoria: false, antes: '',
-    semHojeMv: false, hx: { pag: 0, obra: '', visto: false, y: 0 },   // fatia 2a: o servidor sem o Hoje novo (nesta abertura); a página Geral/Obras e a obra aberta
+    semHojeMv: false, hx: { obra: '', y: 0, cart: {} },   // fatia 2a: o servidor sem o Hoje novo (nesta abertura); Hoje 2026-11: a obra aberta (várias obras) e o cartão à vista da pilha, por contexto
     funcsHoje: null, recusaHoje: '' };   // Pessoal, F1: as funcionalidades do GET /movel/hoje lido NESTA abertura (o servidor decide o Pessoal por conta; sem elas, as do login)
   var $ = function (id) { return document.getElementById(id); };
   function feriados() { return self.DOE_MOVEL_FERIADOS || {}; }
@@ -475,7 +475,7 @@
   }
   /** O anular deste dia que ainda não saiu (revisão C3). */
   function anularPorEnviar(ob, dia) { return minhaFila().filter(function (q) { return q.tipo === 'diario-cmd' && q.accao === 'anular' && q.obraId === ob && q.dia === dia && q.estado === 'a-enviar'; })[0] || null; }
-  function linhaData(pre) {   // pre: o código da obra (dentro de uma obra, várias obras)
+  function linhaData(pre, pos) {   // pre: o código da obra (dentro de uma obra, várias obras); pos: «3 obras» (Hoje 2026-11, várias obras), a seguir ao dia
     var hd = hojeDia(), ch = cache(), p = porEnviar(), d = el('div', 'mv-hdata'), t, ama = false;
     var lido = ch.lidoEm ? Date.parse(ch.lidoEm) : 0, dados = lido ? D.textoDados(ch.lidoEm, new Date()) : '';
     if (c.lendo) t = lido ? 'a atualizar…' : 'a ler pela primeira vez…';
@@ -484,7 +484,7 @@
     else if (!lido) t = tem('diario') ? 'ainda sem dados' : 'atualizado agora';
     else if (/^de /.test(dados)) { t = 'dados ' + dados; ama = true; }
     else t = 'atualizado às ' + dados.replace(/^das /, '');
-    var txt = (pre ? pre + ' · ' : '') + D.textoDiaLongo(hd.dia) + ' · ' + t;
+    var txt = (pre ? pre + ' · ' : '') + D.textoDiaLongo(hd.dia) + (pos ? ' · ' + pos : '') + ' · ' + t;
     if (ama) d.classList.add('ama');
     var b = bt('', txt); b.setAttribute('aria-label', txt + '. Tocar para atualizar'); b.addEventListener('click', function () { if (!online()) { toast('Sem rede. Ficam os dados que já tinhas.'); return; } ler(true); });
     d.appendChild(b);
@@ -517,9 +517,11 @@
     var loc = D.serie7(ch, ob, hd.dia).map(function (x) { return Object.assign(x, { conhecido: x.tem, feriado: feriados()[x.dia] || '', pend: x.hoje && !x.tem ? pendTot : 0 }); });
     return { s: loc, obra: false };
   }
-  function graf7(serie, grande) {
+  /** medOpc (Hoje 2026-11): a média a mostrar (a «média até ontem» do cartão, H.mediaAteOntem; null = sem média); sem ela,
+      a de sempre (D.media, os dias com registo). */
+  function graf7(serie, grande, medOpc) {
     var max = Math.max(8, Math.max.apply(null, serie.map(function (x) { return Math.max(x.total, x.pend || 0); })));
-    var med = D.media(serie), var_ = '--mv-g7-h' + (grande ? 'g' : '');
+    var med = medOpc === undefined ? D.media(serie) : (medOpc || 0), var_ = '--mv-g7-h' + (grande ? 'g' : '');
     var alt = function (v) { return 'calc((var(' + var_ + ') - var(--mv-g7-rot)) * ' + (v / max).toFixed(3) + ')'; };
     var util = function (x) { return !x.fds && !x.feriado; };
     var rot = 'Homens nos últimos 7 dias: ' + serie.map(function (x) { return D.textoDiaCurto(x.dia) + ' ' + (x.tem ? x.total + ' (' + x.doe + ' DOE, ' + x.sub + ' subempreiteiros)' : (x.pend ? x.pend + ' por enviar' : (x.hoje ? 'por fazer' : (x.feriado ? 'feriado' : (x.fds ? 'fim de semana' : (x.conhecido ? 'sem diário' : 'sem dados')))))); }).join(', ') + (med ? '. Média ' + Math.round(med) + '.' : '');
@@ -550,21 +552,211 @@
     return f;
   }
   /** O Hoje: o da fatia 2a (uma obra ou várias, pela leitura única) ou, sem ele no servidor, o da fatia 1. O foco fica
-      onde estava (cada elemento que o pode ter leva data-k). */
+      onde estava (cada elemento que o pode ter leva data-k), e a pilha fica no cartão que se via. */
   function desenharHoje() {
     var v = $('v-hoje'); if (!v) return;
+    var velha = $('hd-pilha');
+    if (velha && velha._toque) { velha._depois = true; return; }   // um dedo a deslizar a pilha: redesenha-se quando o largar
     var ae = document.activeElement, k = ae && v.contains(ae) ? ae.getAttribute('data-k') : null, modo = modoHoje();
-    if (modo === 'f1') desenharHojeF1(v); else desenharHojeMv(v, modo);
-    if (k) { var x = v.querySelector('[data-k="' + k + '"]'); if (x) A.focar(x); }
+    // desenha-se fora do documento e só depois se troca: a pilha que ficou igual (a mesma assinatura) é a que já lá estava,
+    // nunca sai do documento (não perde a posição do deslize nem um gesto a meio)
+    var tmp = el('div');
+    if (modo === 'f1') desenharHojeF1(tmp); else desenharHojeMv(tmp, modo);
+    v.className = tmp.className; if (tmp.hasAttribute('data-hd')) v.setAttribute('data-hd', tmp.getAttribute('data-hd')); else v.removeAttribute('data-hd');
+    var nova = tmp.querySelector('#hd-pilha'), fica = !!(velha && nova && velha.parentNode === v && velha.getAttribute('data-sig') === nova.getAttribute('data-sig'));
+    Array.prototype.slice.call(v.childNodes).forEach(function (n) { if (!(fica && n === velha)) v.removeChild(n); });
+    var antes = true;
+    Array.prototype.slice.call(tmp.childNodes).forEach(function (n) {
+      if (fica && n === nova) { antes = false; return; }
+      if (fica && antes) v.insertBefore(n, velha); else v.appendChild(n);
+    });
+    var w = $('hd-pilha'); if (!fica && w && w._at) irCart(w, w._at, false);
+    if (k) { var x = v.querySelector('[data-k="' + k + '"]'); if (x && x !== document.activeElement) A.focar(x); }
   }
-  function cabHola(v, comObra) {
-    var s = sessao(), cab = el('div', 'mv-hcab'), l = el('div', 'mv-hcab-l'), h1 = el('h1', 'mv-hola', saudacao() + (s && s.nome ? ', ' + primeiroNome(s.nome) : ''));
+  // ── «Hoje 2026-11» (25 nov 2026): o protótipo validado DOEX-Telemovel-Hoje-D-Prototipo.html (plano: docs/analises/
+  // Movel-Hoje-D-Plano.md). UM só ecrã (a variante D de 11 nov, Geral · Obras lado a lado, saiu): o cabeçalho (a linha da
+  // data, a saudação, a obra), a faixa de acção, a pilha de cartões que desliza para o lado (homens em obra, trabalhos em
+  // falta, material, bloqueios do cliente; um de cada vez, à largura toda, o seguinte não espreita; pontos por baixo) e,
+  // com várias obras, «As minhas obras» no fim (tocar numa entra nela: o mesmo desenho só dessa obra, com «‹ Hoje»; sem
+  // deslize entre obras, decisão do Pedro). Prefixo CSS hd-. Um cartão sem dados não se mostra: diz-se «Em breve: …» numa
+  // linha discreta por baixo da pilha (nunca na conta externa).
+  /** O cabeçalho: a linha da data por cima (o estado da leitura, «· N por enviar»; tocar actualiza), a saudação e, com uma
+      obra, o código e o nome (com «Trocar de obra» a quem tem várias permitidas). o: { pos, obra, volta, titulo, pre } */
+  function cabHd(v, o) {
+    var s = sessao(), cab = el('div', 'mv-hcab hd-cab');
+    if (o.volta) {   // dentro de uma obra (várias obras): «‹ Hoje» volta ao Hoje de todas, com o foco na obra de onde se veio
+      var vb = bt('hd-volta'); vb.appendChild(ic('chevE')); vb.appendChild(document.createTextNode('Hoje'));
+      vb.setAttribute('data-k', 'volta'); vb.setAttribute('aria-label', 'Voltar ao Hoje de todas as obras'); vb.addEventListener('click', o.volta); cab.appendChild(vb);
+    }
+    cab.appendChild(linhaData(o.pre, o.pos));
+    var l = el('div', 'mv-hcab-l'), h1 = el('h1', 'mv-hola', o.titulo || (saudacao() + (s && s.nome ? ', ' + primeiroNome(s.nome) : '')));
     h1.tabIndex = -1; h1.setAttribute('data-foco-inicial', ''); h1.id = 'h-hola';
     l.appendChild(h1); cab.appendChild(l);
-    if (comObra) { var ol = obraLinha(); if (ol) cab.appendChild(ol); }
+    if (o.obra) { var ol = obraLinha(); if (ol) cab.appendChild(ol); }
     v.appendChild(cab);
     return cab;
   }
+  /** A faixa de acção (um só desenho para a fatia 1 e a 2a): ícone, o que falta, um botão (#b-acao, data-k «acao»). */
+  function facaoEl(acao) {
+    var fa = el('div', 'mv-facao' + (acao.erro ? ' erro' : (acao.nav ? ' nav' : ''))); fa.style.setProperty('--i', '0');
+    var fi = el('span', 'mv-facao-ic'); fi.appendChild(ic(acao.ic)); fa.appendChild(fi);
+    var ft = el('span', 'mv-facao-t'); ft.appendChild(el('b', null, acao.t)); ft.appendChild(el('small', null, acao.s)); fa.appendChild(ft);
+    var fb = bt('mv-facao-b', acao.b); fb.setAttribute('aria-label', acao.bl); fb.setAttribute('data-k', 'acao'); fb.id = 'b-acao'; fb.addEventListener('click', acao.fn); fa.appendChild(fb);
+    return fa;
+  }
+  /** «Em breve: material.» (ou a lista do que falta) por baixo da pilha: as funcionalidades que ainda não chegaram a este
+      telemóvel (o cartão não se mostra). Nunca na conta externa: nunca as terá. */
+  function embreveHd(v, emb) {
+    if (c.externa || !emb.length) return;
+    v.appendChild(el('p', 'mv-embreve hd-embreve', 'Em breve: ' + (emb.length > 1 ? emb.slice(0, -1).join(', ') + ' e ' : '') + emb[emb.length - 1] + '.'));
+  }
+
+  // ── A pilha de cartões: um de cada vez, à largura toda (scroll-snap com scroll-snap-stop), pontos por baixo que são
+  // botões; um redesenho fica no cartão que se via (c.hx.cart, por contexto: 'f1', 'geral' ou a obra) ──
+  /** cs: [{ k, nome, b (o botão do cartão) }]; ctx: o contexto do cartão à vista. */
+  function pilhaHd(cs, ctx) {
+    var w = el('div', 'hd-pilha'); w.id = 'hd-pilha'; w.style.setProperty('--i', '1');
+    w.setAttribute('role', 'region'); w.setAttribute('aria-roledescription', 'carrossel'); w.setAttribute('aria-label', 'Resumo do dia');
+    var tr = el('div', 'hd-trilho'); w.appendChild(tr);
+    w._ctx = ctx; w._ks = cs.map(function (x) { return x.k; }); w._at = Math.max(0, w._ks.indexOf(c.hx.cart[ctx]));
+    w.setAttribute('data-sig', ctx + '|' + cs.map(function (x) { return x.b.outerHTML; }).join('|'));   // o que se vê: um redesenho igual não refaz a pilha
+    cs.forEach(function (x, i) {
+      var s = el('div', 'hd-cart'); s.setAttribute('role', 'group'); s.setAttribute('aria-roledescription', 'cartão');   // o padrão do carrossel (APG): cada cartão é um grupo, não uma região
+      s.setAttribute('aria-label', (i + 1) + ' de ' + cs.length + ': ' + x.nome); s.setAttribute('data-cart', x.k);
+      s.appendChild(x.b); tr.appendChild(s);
+    });
+    if (cs.length > 1) {   // com um só cartão, sem pontos
+      var pts = el('div', 'hd-pontos'); pts.setAttribute('role', 'group'); pts.setAttribute('aria-label', 'Cartões do resumo');
+      cs.forEach(function (x, i) {
+        var p = bt(''); p.appendChild(el('i')); p.setAttribute('aria-label', x.nome + ', ' + (i + 1) + ' de ' + cs.length); p.setAttribute('data-k', 'ponto-' + x.k);
+        p.addEventListener('click', function () { irCart(w, i, true); });
+        pts.appendChild(p);
+      });
+      w.appendChild(pts);
+    }
+    marcarCart(w, w._at);
+    var t = null;
+    tr.addEventListener('scroll', function () { clearTimeout(t); t = setTimeout(function () { if (tr.isConnected) marcarCart(w, indiceCart(tr)); }, 90); }, { passive: true });
+    // um dedo na pilha: o redesenho espera que o gesto acabe (desenharHoje), para não o cortar a meio
+    tr.addEventListener('touchstart', function () { w._toque = true; }, { passive: true });
+    var solta = function () { w._toque = false; if (w._depois) { w._depois = false; setTimeout(function () { if (w.isConnected && !w._toque) desenharHoje(); }, 160); } };
+    tr.addEventListener('touchend', solta, { passive: true }); tr.addEventListener('touchcancel', solta, { passive: true });
+    return w;
+  }
+  function marcarCart(w, i) {
+    w._at = i; c.hx.cart[w._ctx] = w._ks[i];
+    Array.prototype.forEach.call(w.querySelectorAll('.hd-pontos button'), function (p, k) { if (k === i) p.setAttribute('aria-current', 'true'); else p.removeAttribute('aria-current'); });
+  }
+  function irCart(w, i, suave) {
+    var tr = w.firstChild, alvo = tr && tr.children[i]; if (!alvo) return;
+    marcarCart(w, i);
+    var x = alvo.offsetLeft - tr.firstElementChild.offsetLeft;
+    if (suave && !semMov() && typeof tr.scrollTo === 'function') tr.scrollTo({ left: x, behavior: 'smooth' }); else tr.scrollLeft = x;
+  }
+  /** O cartão à vista: o mais perto do encaixe (quando o deslize pára). */
+  function indiceCart(tr) {
+    var x = tr.scrollLeft, i = 0, melhor = 1e9, o0 = tr.firstElementChild ? tr.firstElementChild.offsetLeft : 0;
+    Array.prototype.forEach.call(tr.children, function (s, k) { var d = Math.abs(s.offsetLeft - o0 - x); if (d < melhor) { melhor = d; i = k; } });
+    return i;
+  }
+  /** O esqueleto da primeira leitura, com a forma da pilha: um cartão parado e, com mais de um, os pontos. */
+  function esqueletoHd(n) {
+    var w = el('div', 'hd-pilha sk'); w.setAttribute('aria-hidden', 'true');
+    var tr = el('div', 'hd-trilho'), s = el('div', 'hd-cart'), b = el('div', 'hd-cart-b');
+    b.appendChild(el('i', 'mv-sk w50')); b.appendChild(el('i', 'mv-sk num')); b.appendChild(el('i', 'mv-sk leg w30'));
+    var z = el('span', 'hd-z'); z.appendChild(el('i', 'mv-sk graf w100')); b.appendChild(z);
+    s.appendChild(b); tr.appendChild(s); w.appendChild(tr);
+    if (n > 1) { var p = el('div', 'hd-pontos'); for (var k = 0; k < n; k++) p.appendChild(el('i', k ? null : 'on')); w.appendChild(p); }
+    return w;
+  }
+
+  // ── Os cartões (o desenho; as contas são de hoje.js e de material-ecra.js) ──
+  /** O topo de um cartão: o rótulo (com o ponto do estado) e o número; à direita, um número pequeno («média até ontem»,
+      «atrasado»). Um cartão inteiro é um botão. */
+  function cartBase(k, rot, est) {
+    var b = bt('hd-cart-b'); b.setAttribute('data-k', 'hd-' + k);
+    var topo = el('span', 'hd-topo'), esq = el('span', 'hd-esq'), r = el('span', 'hd-rot', rot);
+    if (est) { var pt = el('i', 'mv-ponto ' + est); pt.setAttribute('aria-hidden', 'true'); r.appendChild(pt); }
+    esq.appendChild(r); topo.appendChild(esq); b.appendChild(topo);
+    return { b: b, topo: topo, esq: esq };
+  }
+  function numHd(x, n, nada, leg) { var s = el('span', 'hd-n' + (nada ? ' nada' : ''), n); if (leg) s.appendChild(leg); x.esq.appendChild(s); }
+  function medHd(x, n, txt, cls) { var m = el('span', 'hd-med'); m.appendChild(el('b', cls || null, n)); m.appendChild(el('span', null, txt)); x.topo.appendChild(m); }
+  function txtPecas(l) { return (l || []).map(function (p) { return p.t; }).join(', '); }
+  /** Os homens em obra: o número (o de hoje; sem ele, a cascata de sempre), a média até ontem (H.mediaAteOntem: sem
+      nenhum dia útil com registo, nada) e os 7 dias (o âmbar «por fazer» só num dia útil; o fim de semana e o feriado a
+      cinzento). Sem o ponto do estado ao lado do rótulo (decisão do Pedro, 25 nov 2026: o «N por fazer» ao lado do número
+      chega). o: { n, nada, leg: [peças], serie, med, acao, fn, id } */
+  function cartHomens(o) {
+    var x = cartBase('homens', 'Homens em obra', '');
+    numHd(x, o.n, o.nada, o.leg.length ? pecas(el('small'), o.leg) : null);
+    if (o.med != null) medHd(x, String(o.med), 'média até ontem');
+    var z = el('span', 'hd-z'); z.appendChild(graf7(o.serie, false, o.med)); x.b.appendChild(z);
+    x.b.setAttribute('aria-label', 'Homens em obra: ' + o.n + (o.leg.length ? ' ' + txtPecas(o.leg) : '') + (o.med != null ? '; média até ontem ' + o.med : '') + '. ' + o.acao);
+    x.b.addEventListener('click', o.fn);
+    if (o.id) x.b.id = o.id;
+    return { k: 'homens', nome: 'Homens em obra', b: x.b };
+  }
+  /** Os trabalhos em falta: a barra por estado e as legendas de H.blocoTrabalhos (sem mudar). */
+  function cartTrabalhos(t, fn) {
+    var x = cartBase('trabalhos', 'Trabalhos em falta', t.est), g = t.segs.filter(function (s) { return s[0] === 'neg' || s[0] === 'bloq'; })[0];
+    numHd(x, t.n, false, el('small', null, t.leg));
+    if (g) medHd(x, String(g[1]), g[2], g[0] === 'neg' ? 'neg-t' : 'ama-t');
+    var z = el('span', 'hd-z'); if (t.segs.length) z.appendChild(barra20(t.segs));
+    t.caps.forEach(function (l) { z.appendChild(pecas(el('span', 'hd-cap'), l)); }); x.b.appendChild(z);
+    x.b.setAttribute('aria-label', TE && TE.disponivel() ? t.aria.replace(/\. Ver por estado$/, '. Ver a lista') : t.aria);
+    x.b.addEventListener('click', fn);
+    return { k: 'trabalhos', nome: 'Trabalhos em falta', b: x.b };
+  }
+  /** O material: o percurso Pedido · Aceite · A caminho · Recebidos esta semana (os números de ME.bloco) e o que chega hoje. */
+  function cartMaterial(bm, mat, fn) {
+    var x = cartBase('material', 'Pedidos de material', bm.est), atr = Number(mat.atrasados) || 0, dec = Number(mat.porDecidir) || 0;
+    numHd(x, bm.n, false, el('small', null, bm.leg));
+    if (atr) medHd(x, String(atr), atr === 1 ? 'atrasado' : 'atrasados', 'neg-t'); else if (dec) medHd(x, String(dec), 'por decidir', 'ama-t');
+    var z = el('span', 'hd-z'), l = el('span', 'hd-perc'); l.setAttribute('aria-hidden', 'true');
+    ['Pedido', 'Aceite', 'A caminho', 'Recebidos esta semana'].forEach(function (rot, i) {
+      var n = (bm.perc[i] || [])[2] || 0, li = el('span', i === 3 ? 'fim' : (i === 2 && n ? 'on' : (n ? '' : 'zero')));
+      li.appendChild(el('b', null, String(n))); li.appendChild(el('span', null, rot)); l.appendChild(li);
+    });
+    z.appendChild(l);
+    var ch = Number(mat.chegaHoje) || 0, cg = mat.chega;
+    if (ch) z.appendChild(el('span', 'hd-nota', ch === 1 && cg && cg.texto ? 'Chega hoje: ' + cg.texto : ch + ' chegam hoje'));
+    x.b.appendChild(z);
+    x.b.setAttribute('aria-label', bm.aria.replace(/\. Ver os pedidos$/, '') + '; ' + bm.perc.map(function (p, i) { return ['pedidos', 'aceites', 'a caminho', 'recebidos esta semana'][i] + ' ' + p[2]; }).join(', ') + (ch ? '; ' + ch + ' chega' + (ch === 1 ? '' : 'm') + ' hoje' : '') + '. Ver os pedidos');
+    x.b.addEventListener('click', fn);
+    return { k: 'material', nome: 'Pedidos de material', b: x.b };
+  }
+  /** Os bloqueios do cliente: a linha de 14 dias (cliente.pontos[].dia) e a palavra de H.blocoCliente (as do encarregado
+      na conta só de telemóvel). */
+  function cartCliente(cl, fn) {
+    var x = cartBase('cliente', 'Bloqueios do cliente', cl.est);
+    numHd(x, cl.n, false, el('small', null, cl.leg));
+    if (cl.tl) medHd(x, cl.tl.rot, 'o mais antigo', cl.est === 'neg' ? 'neg-t' : null);
+    var z = el('span', 'hd-z'); if (cl.tl) z.appendChild(linhaTempo(cl.tl)); z.appendChild(pecas(el('span', 'hd-cap'), [cl.cap])); x.b.appendChild(z);
+    x.b.setAttribute('aria-label', cl.aria.replace(/\. Ver por estado$/, '. Ver a lista'));
+    x.b.addEventListener('click', fn);
+    return { k: 'cliente', nome: 'Bloqueios do cliente', b: x.b };
+  }
+  /** Os cartões a seguir aos homens: trabalhos, material, cliente (pela ordem do protótipo), só os que têm dados. m: o
+      modelo de uma obra, ou a soma do Geral ({ trabalhos, cliente, material }) com ms = as obras. Devolve o que falta
+      («Em breve»), pela ordem da frase de sempre. */
+  function cartsResto(cs, m, ms, sub) {
+    var geral = !!ms, emb = [];
+    var t = H.blocoTrabalhos(m.trabalhos || null);
+    if (t) cs.push(cartTrabalhos(t, function () { if (TE && TE.disponivel()) { if (geral) TE.folhaObras(ms); else TE.abrirLista(m.id); return; } folhaTrabalhos(m.trabalhos, sub, ms); }));   // a lista por Localização (parte 2); sem ela, os números
+    else emb.push('trabalhos em falta');
+    var mat = ME && ME.disponivel() ? (m.material || null) : null, bm = mat ? ME.bloco(mat) : null;   // fatia 2b, entrega 1
+    if (bm) cs.push(cartMaterial(bm, mat, function () { if (geral) ME.folhaObras(ms); else ME.abrirLista(m.id); }));
+    else emb.push('material');
+    var cl = H.blocoCliente(m.cliente || null, hojeDia().dia, encarregado());
+    if (cl) cs.push(cartCliente(cl, function () {   // a lista dos bloqueios da obra (parte 3); com várias obras, primeiro a obra
+      if (BE && BE.disponivel()) { if (geral) BE.folhaObras(ms); else BE.abrirLista(m.id); return; }
+      toast((BE && BE.motivoFora()) || 'Os bloqueios do cliente vêem-se com ligação ao servidor.', { ms: 4000 });
+    }));
+    else emb.push('bloqueios do cliente');
+    return emb;
+  }
+
   /** As faixas do sistema (sessão acabada, sessão antiga, rascunho de outro dia, servidor por preparar). false = sem
       obras (o Hoje fica por aqui). */
   function faixasSistema(v) {
@@ -580,13 +772,13 @@
   }
   function desenharHojeF1(v) {
     var entra = !c.entrou; c.entrou = true;
-    limpar(v); v.removeAttribute('data-sig'); v.className = 'mv-hoje' + (entra && !semMov() ? ' entra' : '');
+    limpar(v); v.className = 'mv-hoje hd' + (entra && !semMov() ? ' entra' : ''); v.setAttribute('data-hd', 'f1');
     var hd = hojeDia(), ch = cache();
-    cabHola(v, true).appendChild(linhaData());
+    cabHd(v, { obra: true });
     var p = porEnviar();
     if (!faixasSistema(v)) return;
     var ob = obraHoje(), dia = tem('diario');
-    if (dia && !ch.lidoEm && c.lendo) { v.appendChild(esqueleto()); return; }
+    if (dia && !ch.lidoEm && c.lendo) { v.appendChild(esqueletoHd(1)); return; }
     var e = dia ? estadoDiarioHoje(ob) : {}, util = D.diaUtil(hd.dia, feriados()), ult = dia ? D.ultimoComRegisto(ch, ob, hd.dia) : null;
     var acao = null;
     if (p.erros) acao = { ic: 'alerta', t: p.erros + (p.erros === 1 ? ' envio com erro' : ' envios com erro'), s: 'Não chegaram: vê e tenta de novo', b: 'Ver', bl: 'Ver os envios', fn: function () { abrir('v-fila'); }, erro: true };
@@ -594,44 +786,28 @@
       var su = ult ? D.doeESub(ult.equipas) : null;
       acao = { ic: 'diario', t: e.rascunho ? 'Diário por acabar' : 'Diário por fazer', s: ult ? (D.difDias(ult.dia, hd.dia) === 1 ? 'Ontem' : 'A ' + D.textoDiaMes(ult.dia)) + ': ' + D.txtHomens(su.doe + su.sub) + ' · ' + su.doe + ' DOE' : 'Ainda sem registos teus nesta obra', b: e.rascunho ? 'Continuar' : 'Fazer', bl: 'Fazer o diário', fn: function () { abrirDiario(ob); } };
     }
-    if (acao) {
-      var fa = el('div', 'mv-facao' + (acao.erro ? ' erro' : '')); fa.style.setProperty('--i', '0');
-      var fi = el('span', 'mv-facao-ic'); fi.appendChild(ic(acao.ic)); fa.appendChild(fi);
-      var ft = el('span', 'mv-facao-t'); ft.appendChild(el('b', null, acao.t)); ft.appendChild(el('small', null, acao.s)); fa.appendChild(ft);
-      var fb = bt('mv-facao-b', acao.b); fb.setAttribute('aria-label', acao.bl); fb.id = 'b-acao'; fb.addEventListener('click', acao.fn); fa.appendChild(fb);
-      v.appendChild(fa);
-    }
-    if (dia) {
-      var sr = serieDe(ob), hojeS = sr.s[6], g = el('div', 'mv-mosg'), nD, legD = '', nada = false;
-      if (e.meu) { nD = String(hojeS.tem ? hojeS.total : e.meu.total); legD = 'homens hoje'; }
+    if (acao) v.appendChild(facaoEl(acao));
+    if (dia) {   // o cartão dos homens pela cascata de sempre: o de hoje (meu ou por enviar); sem ele, «ontem» ou a data, nunca como hoje
+      var sr = serieDe(ob), hojeS = sr.s[6], nD, legD = '', nada = false;
+      if (e.meu) { nD = String(hojeS.tem ? hojeS.total : e.meu.total); legD = 'hoje'; }
       else if (e.pend) { nD = String(D.totalHomens(e.pend.equipas)); legD = 'hoje'; }
       else { var uS = sr.s.slice(0, 6).filter(function (x) { return x.tem; }).pop(); if (uS) { nD = String(uS.total); legD = D.difDias(uS.dia, hd.dia) === 1 ? 'ontem' : D.textoDiaMes(uS.dia); } else if (ult) { nD = String(D.totalHomens(ult.equipas)); legD = D.difDias(ult.dia, hd.dia) === 1 ? 'ontem' : D.textoDiaMes(ult.dia); } else { nD = '–'; nada = true; legD = util ? '' : (hojeS.feriado ? 'feriado' : 'sem registos'); } }
-      var b = bt('mv-mos larga'); b.id = 'b-diario7'; b.style.setProperty('--i', '1');
-      var top = el('span', 'mv-mos-t'); top.appendChild(ic('diario')); top.appendChild(el('span', 'mv-mos-l', 'Diário'));
       var fech = !aberta(ob);
-      if (!e.meu && util && !fech) { var pt = el('i', 'mv-ponto ama'); pt.setAttribute('aria-hidden', 'true'); top.appendChild(pt); }
-      b.appendChild(top);
-      b.appendChild(el('span', 'mv-mos-n' + (nada ? ' nada' : ''), nD));
-      var leg = el('span', 'mv-mos-c'); if (legD) leg.appendChild(document.createTextNode(legD));
       var est = e.anulando ? 'anulado, por enviar' : (e.meu ? '' : (e.pend ? 'por enviar' : (fech ? 'diário fechado' : (util ? 'hoje por fazer' : ''))));
-      if (est) { if (legD) leg.appendChild(document.createTextNode(' · ')); leg.appendChild(est === 'diário fechado' ? document.createTextNode(est) : el('span', 'ama-t', est)); }
-      b.appendChild(leg);
-      var zv = el('span', 'mv-mos-v'); zv.appendChild(graf7(sr.s, false)); b.appendChild(zv);
-      b.setAttribute('aria-label', 'Diário: ' + nD + ' ' + (legD || 'homens') + (est ? ', ' + est : '') + '. Ver os 7 dias');
-      b.addEventListener('click', abrirDiario7);
-      g.appendChild(b); v.appendChild(g);
+      var leg = []; if (legD) leg.push({ t: legD }); if (est) leg.push(est === 'diário fechado' ? { t: est } : { t: est, cls: 'ama-t' });
+      v.appendChild(pilhaHd([cartHomens({ n: nD, nada: nada, leg: leg, serie: sr.s, med: H ? H.mediaAteOntem(sr.s) : null, acao: 'Ver os 7 dias', fn: abrirDiario7, id: 'b-diario7' })], 'f1'));
       var sda = semDiarioAbertoEl(obras().map(function (o) { return o.id; })); if (sda) v.appendChild(sda);
     }
-    if (!c.externa) v.appendChild(el('p', 'mv-embreve', 'Em breve: trabalhos em falta, material e bloqueios do cliente.'));   // a conta externa nunca os terá
+    if (!c.externa) v.appendChild(el('p', 'mv-embreve hd-embreve', 'Em breve: trabalhos em falta, material e bloqueios do cliente.'));   // a conta externa nunca os terá
   }
   // ── O Hoje da fatia 2a (hoje.js): a leitura única GET /movel/hoje ──
-  // Protótipos validados: DOEX-Telemovel-App-Prototipo.html (o Hoje em Mosaico) e DOEX-Telemovel-Hoje-Todas-as-Obras-
-  // Prototipo.html (variante D). Um bloco que o servidor manda a null nunca mostra números: fica «Em breve».
+  // Desde 25 nov 2026, o desenho é o «Hoje 2026-11» (acima: cabHd, pilhaHd, os cartões, «As minhas obras»). Um bloco que o
+  // servidor manda a null nunca mostra números: o cartão não aparece e diz-se «Em breve: …» por baixo da pilha.
   function temHojeMv() { return !!H && tem('hoje') && !c.semHojeMv; }
   /** O bloco Material da soma do Hoje (várias obras): a faixa «por decidir» / «chega hoje» do Geral (fatia 2b, entrega 1). */
   function somaMaterial() { var p = H ? H.copiaDe(cache(), 'todas') : null; return p && p.data && p.data.soma ? p.data.soma.material || null : null; }
   function obrasTodas() { var p = H ? H.copiaDe(cache(), 'todas') : null; return p ? (p.data.obras || []) : null; }
-  /** 'f1' (o Hoje da fatia 1), 'uma' (uma obra) ou 'varias' (Geral · Obras: quem tem duas ou mais das suas obras). */
+  /** 'f1' (o Hoje da fatia 1), 'uma' (uma obra) ou 'varias' (o Hoje de todas, com «As minhas obras»: quem tem duas ou mais das suas obras). */
   function modoHoje() { if (!temHojeMv()) return 'f1'; if (obras().length > 1) { var l = obrasTodas(); if (l && l.length >= 2) return 'varias'; } return 'uma'; }
   /** A única das minhas obras (quem tem várias permitidas e só uma sua abre nela). */
   function minhaUnica() { if (!H || obras().length < 2) return ''; var l = obrasTodas(); return l && l.length === 1 && obraDe(l[0].id) ? l[0].id : ''; }
@@ -697,160 +873,103 @@
   function modeloDe(o) { return H.modeloObra(o, ctxObra(o.id)); }
   function desenharHojeMv(v, modo) {
     var entra = !c.entrou; c.entrou = true;
-    if (modo === 'varias') desenharVarias(v, entra); else desenharUma(v, entra);
+    limpar(v); v.className = 'mv-hoje hd' + (entra && !semMov() ? ' entra' : '');
+    if (modo === 'varias') desenharVarias(v); else desenharUma(v);
   }
-  // ── Várias obras (variante D): duas páginas lado a lado, «Geral» e «Obras», com deslize com encaixe E o selector de dois
-  // lugares; tocar numa obra entra nela (o mosaico só dela, «‹ Obras»), e lá dentro deslizar passa à obra seguinte. A
-  // estrutura das páginas monta-se uma vez (o deslize fica onde estava); cada redesenho só enche as zonas.
-  function zonaDe(v, id) { var z = $(id); if (!z) { z = el('div'); z.id = id; v.appendChild(z); } return limpar(z); }
-  function desenharVarias(v, entra) {
+  // ── Várias obras: o Hoje de todas (a soma) com «As minhas obras» no fim; tocar numa obra (ou no cartão dos homens, que
+  // abre a folha das obras) entra nela: o mesmo desenho só dessa obra, com «‹ Hoje» e o gesto voltar. ──
+  function desenharVarias(v) {
     var copia = H.copiaDe(cache(), 'todas'), ms = (copia.data.obras || []).map(modeloDe), ord = H.ordenar(ms);
     if (c.hx.obra && !ms.some(function (m) { return m.id === c.hx.obra; })) c.hx.obra = '';
-    var dentro = c.hx.obra, sig = (dentro ? 'obra|' : 'geral|') + ord.map(function (m) { return m.id; }).join(','), mesmo = v.getAttribute('data-sig') === sig && !!$('hx-pags');
-    if (!mesmo) { limpar(v); v.setAttribute('data-sig', sig); v.className = 'mv-hoje hx-d' + (entra && !semMov() ? ' entra' : ''); }
-    if (dentro) desenharDentro(v, ord, mesmo); else desenharGeral(v, ms, ord, copia.data.soma || {}, mesmo);
+    if (c.hx.obra) { desenharDentro(v, ms.filter(function (m) { return m.id === c.hx.obra; })[0]); return; }
+    v.setAttribute('data-hd', 'geral');
+    cabHd(v, { pos: ms.length + ' obras' });
+    faixasSistema(v);
+    var fa = faixaAcaoMv(ms, true); if (fa) v.appendChild(fa);
+    var soma = copia.data.soma || {}, bd = H.blocoDiarioGeral(ms, hojeDia().dia, feriados());
+    var cs = [cartHomens({ n: bd.n, nada: bd.nada, leg: bd.leg, serie: bd.serie, med: H.mediaAteOntem(bd.serie), acao: 'Escolher a obra', fn: function () { folhaHomensObras(ord); } })];
+    var emb = cartsResto(cs, { trabalhos: soma.trabalhos || null, cliente: soma.cliente || null, material: soma.material || null }, ms, 'Todas as obras · ' + ms.length);
+    v.appendChild(pilhaHd(cs, 'geral'));
+    var sda = semDiarioAbertoEl(ms.map(function (x) { return x.id; })); if (sda) v.appendChild(sda);
+    embreveHd(v, emb);
+    v.appendChild(obrasHd(ord));
   }
-  function desenharGeral(v, ms, ord, soma, mesmo) {
-    var cab = zonaDe(v, 'hx-cab'), fx = zonaDe(v, 'hx-fx'), sg = zonaDe(v, 'hx-segm');
-    cabHola(cab, false).appendChild(el('p', 'mv-hobra')).appendChild(el('span', null, 'Todas as obras · ' + ms.length));
-    cab.firstChild.appendChild(linhaData());
-    faixasSistema(fx);
-    var segl = el('div', 'hx-segm-l'), seg = el('div', 'mv-segm hx-segm'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Página do Hoje');
-    [['Geral', 0], ['Obras · ' + ms.length, 1]].forEach(function (x) { var b = bt('', x[0]); b.setAttribute('data-v', String(x[1])); b.setAttribute('data-k', 'seg-' + x[1]); b.addEventListener('click', function () { irPagina(x[1], true); }); seg.appendChild(b); });
-    segl.appendChild(seg); segl.appendChild(pontos(2, c.hx.pag)); sg.appendChild(segl);
-    var pags = $('hx-pags');
-    if (!mesmo) {
-      pags = el('div', 'hx-pags' + (c.hx.visto ? '' : ' espreita')); pags.id = 'hx-pags'; pags.setAttribute('data-modo', 'geral');
-      ['Geral', 'Obras'].forEach(function (n, i) { var s = el('section', 'hx-pag'); s.id = 'hx-p' + i; s.setAttribute('aria-label', n); pags.appendChild(s); });
-      v.appendChild(pags); ligarPags(pags);
-    }
-    var p0 = limpar($('hx-p0')), p1 = limpar($('hx-p1'));
-    var fa = faixaAcaoMv(ms, true); if (fa) p0.appendChild(fa);
-    p0.appendChild(mosaicoMv({ trabalhos: soma.trabalhos || null, cliente: soma.cliente || null, material: soma.material || null }, true, ms));
-    var sda = semDiarioAbertoEl(ms.map(function (x) { return x.id; })); if (sda) p0.appendChild(sda);
-    var gr = el('div', 'mv-grupo hx-grupo-d'), h = el('div', 'hx-sec-h'); h.appendChild(el('h2', null, 'Por atenção')); h.appendChild(el('span', null, 'homens hoje')); gr.appendChild(h);
-    ord.forEach(function (m) { gr.appendChild(linhaObraD(m)); });
-    p1.appendChild(gr);
-    aplicarPag(pags, c.hx.pag);
-    if (!mesmo) irPag(pags, c.hx.pag, false);
-  }
-  /** Uma linha por obra: código a negrito, nome, a palavra (só o mais grave), os 7 dias em miniatura, os homens de hoje. */
-  function linhaObraD(m) {
-    var w = H.palavra(m), b = bt('hx-ob hx-rica'); b.setAttribute('data-k', 'ob-' + m.id); b.setAttribute('data-obra', m.id);
-    b.setAttribute('aria-label', m.codigo + ' ' + m.nome + ': ' + (m.tem ? m.homensHoje + ' homens hoje' : 'sem diário hoje') + ', ' + w.t + (m.problema === 'semResposta' ? ' do cliente' : '') + '. Entrar na obra');
-    var t = el('span', 'hx-ob-t'), nb = el('b'); nb.appendChild(el('code', null, m.codigo)); nb.appendChild(document.createTextNode(m.nome)); t.appendChild(nb); t.appendChild(el('small', w.cls, w.t)); b.appendChild(t);
-    var mini = el('span', 'hx-mini'); mini.setAttribute('aria-hidden', 'true');
-    var max = Math.max(8, Math.max.apply(null, m.serie.map(function (x) { return x.total; })));
-    m.serie.forEach(function (x) {
-      var col = el('i', x.fds || x.feriado ? 'fds' : null);
-      if (x.tem) { var d = el('i', 'doe'); d.style.height = (x.doe / max * 100).toFixed(1) + '%'; var s = el('i', 'sub'); s.style.height = (x.sub / max * 100).toFixed(1) + '%'; col.appendChild(d); col.appendChild(s); }
-      else if (x.hoje && (m.porFazer || m.pend)) { var p = el('i', 'por'); p.style.height = '45%'; col.appendChild(p); }
-      mini.appendChild(col);
+  /** «As minhas obras»: pela atenção que pedem (H.ordenar); o código num círculo, o nome, as pendências (H.pendencias) e,
+      à direita, a palavra com a cor (H.palavra: só o mais grave). Tocar entra na obra. */
+  function obrasHd(ord) {
+    var sec = el('section', 'hd-sec'); sec.id = 'hd-obras'; sec.setAttribute('aria-labelledby', 'hd-obras-t'); sec.style.setProperty('--i', '2');
+    var h = el('div', 'hd-sec-h'), h2 = el('h2', null, 'As minhas obras'); h2.id = 'hd-obras-t'; h.appendChild(h2); h.appendChild(el('span', null, String(ord.length))); sec.appendChild(h);
+    var g = el('div', 'hd-grupo'), comMat = !!(ME && ME.disponivel());
+    ord.forEach(function (m) {
+      var w = H.palavra(m), pd = H.pendencias(m, { material: comMat }), b = bt('hd-ob'); b.setAttribute('data-obra', m.id); b.setAttribute('data-k', 'ob-' + m.id);
+      var ci = el('span', 'hd-ci', m.codigo); ci.setAttribute('aria-hidden', 'true'); b.appendChild(ci);
+      var tx = el('span', 'hd-ob-t'); tx.appendChild(el('b', null, m.nome)); if (pd) tx.appendChild(el('small', null, pd)); b.appendChild(tx);
+      b.appendChild(el('span', 'hd-ob-w ' + w.cls, w.t));
+      b.setAttribute('aria-label', (m.codigo ? m.codigo + ' · ' : '') + m.nome + (pd ? ': ' + pd : '') + '. ' + w.t + (m.problema === 'semResposta' ? ' do cliente' : '') + '. Entrar na obra');
+      b.addEventListener('click', function () { entrarObra(m.id); });
+      g.appendChild(b);
     });
-    b.appendChild(mini);
-    var n = el('span', 'hx-num' + (m.tem ? '' : ' nada')); n.appendChild(el('b', null, m.tem ? String(m.homensHoje) : '–')); n.appendChild(el('small', null, 'hoje')); b.appendChild(n);
-    b.appendChild(ic('chev'));
-    b.addEventListener('click', function () { entrarObra(m.id); });
-    return b;
+    sec.appendChild(g);
+    return sec;
   }
-  function pontos(n, at) { var s = el('span', 'hx-pontos'); s.setAttribute('aria-hidden', 'true'); for (var i = 0; i < n; i++) s.appendChild(el('i', i === at ? 'on' : null)); return s; }
-  /** Dentro de uma obra: uma página por obra (pela ordem da página Obras), lado a lado; «1 de 3» por baixo. */
-  function desenharDentro(v, ord, mesmo) {
-    var fx = zonaDe(v, 'hx-fx'); faixasSistema(fx);
-    var pags = $('hx-pags');
-    if (!mesmo) {
-      pags = el('div', 'hx-pags'); pags.id = 'hx-pags'; pags.setAttribute('data-modo', 'obra'); pags.setAttribute('aria-roledescription', 'carrossel'); pags.setAttribute('aria-label', 'Obras');
-      ord.forEach(function (m, i) { var s = el('section', 'hx-pag'); s.setAttribute('data-id', m.id); s.setAttribute('aria-label', m.codigo + ', ' + (i + 1) + ' de ' + ord.length); pags.appendChild(s); });
-      v.appendChild(pags); ligarPags(pags);
-      var pb = el('div', 'hx-pontos-b'); pb.id = 'hx-pontos-b'; v.appendChild(pb);
-    }
-    var at = 0;
-    Array.prototype.forEach.call(pags.children, function (s, i) {
-      var m = ord[i]; if (m.id === c.hx.obra) at = i;
-      limpar(s);
-      var cab = el('div', 'mv-hcab'), vb = bt('hx-volta'); vb.appendChild(ic('chevE')); vb.appendChild(document.createTextNode('Obras')); vb.setAttribute('data-k', 'volta-' + m.id); vb.setAttribute('aria-label', 'Voltar às obras');
-      vb.addEventListener('click', sairObra); cab.appendChild(vb);
-      var l = el('div', 'mv-hcab-l'), h1 = el('h1', 'mv-hola', m.nome); h1.tabIndex = -1; h1.id = 'h-hola-' + i; l.appendChild(h1); cab.appendChild(l);
-      cab.appendChild(linhaData(m.codigo)); s.appendChild(cab);
-      var fa = faixaAcaoMv([m], false, m.id === c.hx.obra); if (fa) s.appendChild(fa);
-      s.appendChild(mosaicoMv(m, false));
-      s.querySelectorAll('[data-k]').forEach(function (x) { if (!/^volta-/.test(x.getAttribute('data-k'))) x.setAttribute('data-k', x.getAttribute('data-k') + '@' + m.id); });   // um por página (o foco volta ao mesmo)
-    });
-    aplicarPag(pags, at);
-    if (!mesmo) irPag(pags, at, false);
+  /** O cartão dos homens com várias obras: escolher a obra e entrar nela (decisão do Pedro, 25 nov 2026). */
+  function folhaHomensObras(ord) {
+    folha({ titulo: 'Homens em obra', sub: 'Escolhe a obra', alta: ord.length > 6, corpo: function (cc) {
+      ord.forEach(function (m) {
+        var b = bt('mv-lo mv-lo-ir'); b.setAttribute('data-obra', m.id);
+        var n = el('span', 'mv-lo-n', m.nome);
+        n.appendChild(el('small', null, m.tem ? D.txtHomens(m.homensHoje) + ' hoje' : (m.pend ? 'diário por enviar' : (m.porFazer ? 'diário por fazer' : (m.fechado ? 'diário fechado' : 'sem diário hoje')))));
+        junta(b, el('code', null, m.codigo), n, ic('chev'));
+        b.addEventListener('click', function () { A.fecharFolhas(true); entrarObra(m.id, true); });
+        cc.appendChild(b);
+      });
+    } });
   }
-  /** A página que se vê: as outras ficam inert (nem o leitor de ecrã nem o Tab lá chegam); o selector e os pontos. */
-  function aplicarPag(pags, i) {
-    var ss = pags.children, obra = pags.getAttribute('data-modo') === 'obra';
-    Array.prototype.forEach.call(ss, function (s, k) { if (k === i) s.removeAttribute('inert'); else s.setAttribute('inert', ''); var h = s.querySelector('.mv-hola'); if (h) { if (k === i) h.setAttribute('data-foco-inicial', ''); else h.removeAttribute('data-foco-inicial'); } });
-    if (obra) {
-      var h1 = ss[i] && ss[i].querySelector('.mv-hola'); if (h1) $('v-hoje').setAttribute('aria-labelledby', h1.id);
-      var pb = $('hx-pontos-b'); if (pb) { limpar(pb); if (ss.length <= 10) pb.appendChild(pontos(ss.length, i)); pb.appendChild(el('span', 'hx-pontos-t', (i + 1) + ' de ' + ss.length + ' · desliza para a obra ao lado')); }
-    } else {
-      $('v-hoje').setAttribute('aria-labelledby', 'h-hola');
-      Array.prototype.forEach.call(document.querySelectorAll('.hx-segm button'), function (b) { b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-v')) === i)); });
-      Array.prototype.forEach.call(document.querySelectorAll('.hx-segm-l .hx-pontos i'), function (d, k) { d.className = k === i ? 'on' : ''; });
-    }
+  /** Dentro de uma obra (várias obras): o mesmo desenho só dessa obra, com «‹ Hoje»; sem deslize para a obra ao lado. */
+  function desenharDentro(v, m) {
+    v.setAttribute('data-hd', 'obra');
+    cabHd(v, { volta: sairObra, titulo: m.nome, pre: m.codigo });
+    faixasSistema(v);
+    corpoObraHd(v, m);
   }
-  function irPag(pags, i, suave) {
-    var alvo = pags.children[i]; if (!alvo) return;
-    var x = alvo.offsetLeft - pags.firstElementChild.offsetLeft;
-    if (typeof pags.scrollTo === 'function') pags.scrollTo({ left: x, behavior: suave && !semMov() ? 'smooth' : 'auto' }); else pags.scrollLeft = x;
+  /** O corpo do Hoje de uma obra: a faixa de acção, a pilha (homens, trabalhos, material, cliente), o diário fechado e o
+      «Em breve». */
+  function corpoObraHd(v, m) {
+    var fa = faixaAcaoMv([m], false); if (fa) v.appendChild(fa);
+    var bd = H.blocoDiario(m, null), e = estadoDiarioHoje(m.id), leg = bd.leg.map(function (x) { return x.t === 'homens hoje' ? { t: 'hoje' } : x; });
+    if (e.anulando) leg.push({ t: 'anulado, por enviar', cls: 'ama-t' });
+    var cs = [cartHomens({ n: bd.n, nada: bd.nada, leg: leg, serie: m.serie, med: H.mediaAteOntem(m.serie), acao: 'Ver os 7 dias', fn: abrirDiario7, id: 'b-diario7' })];
+    var emb = cartsResto(cs, m, null, (m.codigo ? m.codigo + ' · ' : '') + m.nome);
+    v.appendChild(pilhaHd(cs, m.id));
+    var sda = semDiarioAbertoEl([m.id]); if (sda) v.appendChild(sda);
+    embreveHd(v, emb);
   }
-  function indicePag(pags) {
-    var x = pags.scrollLeft, i = 0, melhor = 1e9, o0 = pags.firstElementChild ? pags.firstElementChild.offsetLeft : 0;
-    Array.prototype.forEach.call(pags.children, function (s, k) { var d = Math.abs(s.offsetLeft - o0 - x); if (d < melhor) { melhor = d; i = k; } });
-    return i;
-  }
-  /** O deslize: quando pára (o encaixe acabou), a página que se vê passa a ser a actual. */
-  function ligarPags(pags) {
-    var t = null;
-    pags.addEventListener('scroll', function () {
-      clearTimeout(t);
-      t = setTimeout(function () {
-        if (!pags.isConnected) return;
-        var i = indicePag(pags);
-        if (pags.getAttribute('data-modo') === 'geral') { if (i !== c.hx.pag) { c.hx.pag = i; if (i === 1) c.hx.visto = true; } aplicarPag(pags, i); return; }
-        var s = pags.children[i], id = s && s.getAttribute('data-id');
-        if (id && id !== c.hx.obra) { c.hx.obra = id; c.obraHoje = id; try { history.replaceState(Object.assign({}, history.state || {}, { hxObra: id }), ''); } catch (e) { /* nada */ } }
-        aplicarPag(pags, i);
-      }, 90);
-    }, { passive: true });
-  }
-  /** Geral ou Obras (o selector, o bloco Diário do Geral): o deslize nunca é a única maneira. */
-  function irPagina(i, suave) {
-    c.hx.pag = i; if (i === 1) c.hx.visto = true;
-    var pags = $('hx-pags'); if (!pags || pags.getAttribute('data-modo') !== 'geral') return;
-    aplicarPag(pags, i); irPag(pags, i, suave);
-  }
-  function entrarObra(id) {
+  /** daFolha: vem da folha das obras (o cartão dos homens): o ecrã fica no lugar da entrada da folha no histórico. */
+  function entrarObra(id, daFolha) {
     c.hx.y = window.scrollY || 0; c.hx.obra = id; c.obraHoje = id;
     c.pilha.push('v-hoje');
-    try { history.pushState({ mvV: 'v-hoje', n: c.pilha.length, hxObra: id }, ''); } catch (e) { /* sem histórico */ }
+    try { var st = { mvV: 'v-hoje', n: c.pilha.length, hxObra: id }; if (daFolha) history.replaceState(st, ''); else history.pushState(st, ''); } catch (e) { /* sem histórico */ }
     desenharHoje(); window.scrollTo(0, 0);
-    var h = document.querySelector('#hx-pags > .hx-pag:not([inert]) .mv-hola'); if (h) A.focar(h);
+    var h = $('h-hola'); if (h) A.focar(h);
   }
-  /** «‹ Obras» e o gesto voltar: a página Obras, na mesma posição, com o foco na obra de onde se veio. */
+  /** «‹ Hoje» e o gesto voltar: o Hoje de todas as obras, na mesma posição, com o foco na obra de onde se veio. */
   function sairObra() { if (history.state && history.state.hxObra && c.pilha.length > 1) { try { history.back(); return; } catch (e) { /* segue */ } } sairObraJa(); }
   function sairObraJa() {
-    var id = c.hx.obra; c.hx.obra = ''; c.hx.pag = 1; c.hx.visto = true;
+    var id = c.hx.obra; c.hx.obra = '';
     if (c.pilha.length > 1 && c.pilha[c.pilha.length - 1] === 'v-hoje' && c.pilha[c.pilha.length - 2] === 'v-hoje') c.pilha.pop();
     try { if (history.state && history.state.hxObra) history.replaceState({ mvV: 'v-hoje', n: c.pilha.length }, ''); } catch (e) { /* nada */ }
     desenharHoje(); window.scrollTo(0, c.hx.y || 0);
-    var b = document.querySelector('#hx-p1 [data-obra="' + id + '"]'); if (b) A.focar(b);
+    var b = document.querySelector('#hd-obras [data-obra="' + id + '"]');
+    if (b) { A.focar(b); if (typeof b.scrollIntoView === 'function') b.scrollIntoView({ block: 'nearest' }); }   // vindo das Obras (sem posição guardada) a linha pode estar abaixo da dobra: o foco vê-se
   }
-  /** O Hoje de uma obra (quem tem só uma, ou a escolhida no selector). */
-  function desenharUma(v, entra) {
-    limpar(v); v.removeAttribute('data-sig'); v.className = 'mv-hoje' + (entra && !semMov() ? ' entra' : '');
-    cabHola(v, true).appendChild(linhaData());
+  /** O Hoje de uma obra (quem tem só uma, ou a escolhida na folha «Obra»). */
+  function desenharUma(v) {
+    v.setAttribute('data-hd', 'uma');
+    cabHd(v, { obra: true });
     if (!faixasSistema(v)) return;
     var ob = obraHoje(), x = ob ? H.obraNaCopia(cache(), ob) : null;
-    if (!x) { v.appendChild(c.lendo || (online() && A.sessaoValida()) ? esqueletoMv() : el('p', 'mv-nada', 'Ainda não tenho o Hoje desta obra neste telemóvel: aparece quando houver rede.')); return; }
-    var m = modeloDe(x.o), fa = faixaAcaoMv([m], false); if (fa) v.appendChild(fa);
-    v.appendChild(mosaicoMv(m, false));
-    var sda = semDiarioAbertoEl([m.id]); if (sda) v.appendChild(sda);
-    var ba = v.querySelector('[data-k="acao"]'), bd = v.querySelector('[data-k="mos-diario"]');   // uma página só: os ids de sempre
-    if (ba) ba.id = 'b-acao'; if (bd) bd.id = 'b-diario7';
+    if (!x) { v.appendChild(c.lendo || (online() && A.sessaoValida()) ? esqueletoHd(4) : el('p', 'mv-nada', 'Ainda não tenho o Hoje desta obra neste telemóvel: aparece quando houver rede.')); return; }
+    corpoObraHd(v, modeloDe(x.o));
   }
   /** A faixa de acção, pela precedência do protótipo: envios com erro; diário por fazer (de uma obra, ou quantas faltam);
       dentro de uma obra, o bloqueio do cliente por confirmar (só quem o pode confirmar, pelo `pode` do servidor: bloqueios-ecra.js).
@@ -874,73 +993,9 @@
     // Fatia 2b, entrega 1 (24 nov 2026): «N materiais por decidir» (só ao decisor; o servidor só lha dá a ele) e «Chega hoje».
     // No Geral, a da soma (a primeira obra que a tem); dentro de uma obra, a dessa obra.
     if (!acao && ME) acao = ME.faixa(geral ? somaMaterial() : ms[0].material, geral ? null : ms[0].id);
-    if (!acao) return null;
-    var fa = el('div', 'mv-facao' + (acao.erro ? ' erro' : (acao.nav ? ' nav' : ''))); fa.style.setProperty('--i', '0');
-    var fi = el('span', 'mv-facao-ic'); fi.appendChild(ic(acao.ic)); fa.appendChild(fi);
-    var ft = el('span', 'mv-facao-t'); ft.appendChild(el('b', null, acao.t)); ft.appendChild(el('small', null, acao.s)); fa.appendChild(ft);
-    var fb = bt('mv-facao-b', acao.b); fb.setAttribute('aria-label', acao.bl); fb.setAttribute('data-k', 'acao'); fb.addEventListener('click', acao.fn); fa.appendChild(fb);
-    return fa;
+    return acao ? facaoEl(acao) : null;
   }
   function pecas(box, l) { (l || []).forEach(function (x, i) { if (i) box.appendChild(document.createTextNode(' · ')); if (x.cls) box.appendChild(el('span', x.cls, x.t)); else box.appendChild(document.createTextNode(x.t)); }); return box; }
-  function blocoBase(k, nomeIc, rot, est, i) {
-    var b = bt('mv-mos'); b.style.setProperty('--i', String(i)); b.setAttribute('data-k', 'mos-' + k);
-    var top = el('span', 'mv-mos-t'); top.appendChild(ic(nomeIc)); top.appendChild(el('span', 'mv-mos-l', rot));
-    if (est) { var pt = el('i', 'mv-ponto ' + est); pt.setAttribute('aria-hidden', 'true'); top.appendChild(pt); }
-    b.appendChild(top); return b;
-  }
-  /** O mosaico: Diário, Trabalhos, Cliente e Material (2b) por vir. Os blocos por vir ficam no fim, na ordem do protótipo;
-      o arranjo é a grelha 2 × 2 validada (o que está vivo ocupa os primeiros lugares, na ordem de leitura). */
-  function mosaicoMv(m, geral, ms) {
-    var g = el('div', 'mv-mosg'), i = 1, emb = [], hd = hojeDia();
-    var bd = geral ? H.blocoDiarioGeral(ms, hd.dia, feriados()) : H.blocoDiario(m, null), serie = geral ? bd.serie : m.serie;
-    var b = blocoBase('diario', 'diario', 'Diário', bd.est, i++);
-    b.appendChild(el('span', 'mv-mos-n' + (bd.nada ? ' nada' : ''), bd.n));
-    b.appendChild(pecas(el('span', 'mv-mos-c'), bd.leg));
-    var zv = el('span', 'mv-mos-v'); zv.appendChild(graf7(serie, false)); b.appendChild(zv);
-    b.setAttribute('aria-label', 'Diário' + (geral ? ' de todas as obras' : '') + ': ' + bd.n + ' ' + bd.leg.map(function (x) { return x.t; }).join(', ') + (geral ? '. Ver as obras' : '. Ver os 7 dias'));
-    b.addEventListener('click', geral ? function () { irPagina(1, true); } : abrirDiario7);
-    g.appendChild(b);
-    var t = H.blocoTrabalhos(geral ? (m && m.trabalhos) : m.trabalhos), cl = H.blocoCliente(geral ? (m && m.cliente) : m.cliente, hd.dia, encarregado());
-    var sub = geral ? 'Todas as obras · ' + ms.length : (m.codigo ? m.codigo + ' · ' : '') + m.nome;
-    if (t) {
-      var bt2 = blocoBase('trabalhos', 'falta', 'Trabalhos', t.est, i++);
-      bt2.appendChild(el('span', 'mv-mos-n', t.n)); bt2.appendChild(el('span', 'mv-mos-c', t.leg));
-      var zt = el('span', 'mv-mos-v'); if (t.segs.length) zt.appendChild(barra20(t.segs));
-      t.caps.forEach(function (l) { zt.appendChild(pecas(el('span', 'mv-mos-cap'), l)); }); bt2.appendChild(zt);
-      bt2.setAttribute('aria-label', TE && TE.disponivel() ? t.aria.replace(/\. Ver por estado$/, '. Ver a lista') : t.aria);
-      bt2.addEventListener('click', function () { if (TE && TE.disponivel()) { if (geral) TE.folhaObras(ms); else TE.abrirLista(m.id); return; } folhaTrabalhos(geral ? m.trabalhos : m.trabalhos, sub, geral ? ms : null); });   // a lista por Localização (parte 2); sem ela, os números
-      g.appendChild(bt2);
-    } else emb.push(['trabalhos', 'falta', 'Trabalhos', 'Os trabalhos em falta']);
-    var bm = ME && ME.disponivel() ? ME.bloco(m && m.material) : null;   // por vir, o Material fica onde sempre esteve entre os «Em breve»
-    if (!bm) emb.push(['material', 'caixa', 'Material', 'O material pedido e as entregas em obra']);
-    if (cl) {
-      var bc = blocoBase('cliente', 'obra', 'Cliente', cl.est, i++);
-      bc.appendChild(el('span', 'mv-mos-n', cl.n)); bc.appendChild(el('span', 'mv-mos-c', cl.leg));
-      var zc = el('span', 'mv-mos-v'); if (cl.tl) zc.appendChild(linhaTempo(cl.tl)); zc.appendChild(pecas(el('span', 'mv-mos-cap'), [cl.cap])); bc.appendChild(zc);
-      bc.setAttribute('aria-label', cl.aria.replace(/\. Ver por estado$/, '. Ver a lista'));
-      bc.addEventListener('click', function () {   // a lista dos bloqueios da obra (parte 3); com várias obras, primeiro a obra
-        if (BE && BE.disponivel()) { if (geral) BE.folhaObras(ms); else BE.abrirLista(m.id); return; }
-        toast((BE && BE.motivoFora()) || 'Os bloqueios do cliente vêem-se com ligação ao servidor.', { ms: 4000 });
-      });
-      g.appendChild(bc);
-    } else emb.push(['cliente', 'obra', 'Cliente', 'Os bloqueios do cliente']);
-    if (bm) {   // fatia 2b, entrega 1 (24 nov 2026): o bloco Material vivo, depois do Cliente (a ordem do protótipo)
-      var bk = blocoBase('material', 'caixa', 'Material', bm.est, i++);
-      bk.appendChild(el('span', 'mv-mos-n', bm.n)); bk.appendChild(el('span', 'mv-mos-c', bm.leg));
-      var zm = el('span', 'mv-mos-v pm-perc');
-      bm.perc.forEach(function (x) { var r = el('span', (x[0] ? x[0] : '') + (x[2] ? '' : ' zero')); r.appendChild(el('i')); r.appendChild(document.createTextNode(x[1])); r.appendChild(el('b', null, String(x[2]))); zm.appendChild(r); });
-      bk.appendChild(zm); bk.setAttribute('aria-label', bm.aria);
-      bk.addEventListener('click', function () { if (geral) ME.folhaObras(ms); else ME.abrirLista(m.id); });
-      g.appendChild(bk);
-    }
-    emb.forEach(function (e) {
-      var be = blocoBase(e[0], e[1], e[2], '', i++); be.classList.add('embreve'); be.setAttribute('aria-disabled', 'true');
-      be.appendChild(el('span', 'mv-mos-c', 'Em breve')); be.setAttribute('aria-label', e[2] + ': em breve');
-      be.addEventListener('click', function () { toast(e[3] + ' chegam em breve a este telemóvel.'); });
-      g.appendChild(be);
-    });
-    return g;
-  }
   /** Barra alta com os números dentro: atrasados, bloqueados (com trama), por fazer, por planear. */
   function barra20(segs) {
     var w = el('span', 'mv-b20'); w.setAttribute('role', 'img'); w.setAttribute('aria-label', segs.map(function (x) { return x[1] + ' ' + x[2]; }).join(', '));
@@ -990,24 +1045,6 @@
         cc.appendChild(b);
       });
     } });
-  }
-  /** A primeira leitura: a forma dos quatro blocos, parada. */
-  function esqueletoMv() {
-    var g = el('div', 'mv-mosg'); g.setAttribute('aria-hidden', 'true');
-    for (var k = 0; k < 4; k++) {
-      var b = el('div', 'mv-mos sk'), t = el('span', 'mv-mos-t'); t.appendChild(el('i', 'mv-sk w50')); b.appendChild(t);
-      b.appendChild(el('i', 'mv-sk num')); b.appendChild(el('i', 'mv-sk leg w70'));
-      var z = el('span', 'mv-mos-v'); z.appendChild(el('i', 'mv-sk graf w100')); z.appendChild(el('i', 'mv-sk w60')); b.appendChild(z);
-      g.appendChild(b);
-    }
-    return g;
-  }
-  function esqueleto() {
-    var g = el('div', 'mv-mosg'); g.setAttribute('aria-hidden', 'true');
-    var b = el('div', 'mv-mos sk larga'), t = el('span', 'mv-mos-t'); t.appendChild(el('i', 'mv-sk w30')); b.appendChild(t);
-    b.appendChild(el('i', 'mv-sk num')); b.appendChild(el('i', 'mv-sk leg w50'));
-    var z = el('span', 'mv-mos-v'); z.appendChild(el('i', 'mv-sk graf w100')); b.appendChild(z);
-    g.appendChild(b); return g;
   }
   /** A obra do Hoje escolhida pela pessoa (a folha «Obra» do Hoje e o destino Obras): fica para a próxima abertura. */
   function escolherObraHoje(id) { c.obraHoje = id; lsGravar(LS_OBRA_HOJE, id); }
@@ -1834,8 +1871,8 @@
     if (k) { var x = v.querySelector('[data-k="' + k + '"]'); if (x) A.focar(x); }
   }
   /** Tocar numa das minhas obras: o Hoje dessa obra, sem deixar uma entrada morta no histórico (revisão de 48b0111b, C5).
-      Várias obras: entra nela, no lugar das Obras no histórico (o «‹ Obras» e o «voltar» dão a página Obras do Hoje); sem
-      leitura própria (C2: a obra já está na leitura «todas»). Uma página só: volta ao Hoje pelo «voltar» (a entrada das Obras
+      Várias obras: entra nela, no lugar das Obras no histórico (o «‹ Hoje» e o «voltar» dão o Hoje de todas, com o foco na
+      linha dela em «As minhas obras»); sem leitura própria (C2: a obra já está na leitura «todas»). Uma página só: volta ao Hoje pelo «voltar» (a entrada das Obras
       sai) e só lê a obra se ela mudou. */
   function abrirObraNoHoje(id) {
     if (!obraDe(id)) return;
@@ -2025,14 +2062,14 @@
   function antesDoLogin() { var v = A.vista(); if (v && v !== 'v-login') c.antes = v; gravarRascunhoJa(); }   // o rascunho a meio grava-se já (com a conta de agora)
   function depoisDoLogin(contaMudou) {
     c.semHojeMv = false; c.externa = false; c.funcsHoje = null; c.recusaHoje = ''; if (PE) PE.aoSair();   // a sessão nova traz as funcionalidades do servidor de agora (também o Pessoal)
-    if (contaMudou) { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (ME) ME.aoSair(); c.cache = null; c.form = null; c.envio = null; c.lidoMs = 0; c.obraHoje = ''; c.antes = ''; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }   // 2.ª revisão: também o formulário, o envio e o «fora» dos trabalhos e bloqueios
+    if (contaMudou) { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (ME) ME.aoSair(); c.cache = null; c.form = null; c.envio = null; c.lidoMs = 0; c.obraHoje = ''; c.antes = ''; c.hx = { obra: '', y: 0, cart: {} }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }   // 2.ª revisão: também o formulário, o envio e o «fora» dos trabalhos e bloqueios
     var v = c.antes; c.antes = '';
     if (v === 'v-registo' || v === 'v-envio') { c.pilha = ['v-hoje', 'v-registo']; try { history.replaceState({ mvV: 'v-registo', n: 2 }, ''); } catch (e) { /* nada */ } c.vista = 'v-registo'; A.abrirOcorrencia(); desenharNav(); }   // M7: volta ao formulário da ocorrência
     else if (v && ehCasca(v) && (v !== 'v-diario' || c.form) && (v !== 'v-dia-envio' || c.envio) && vistaViva(v)) mostrar(v);
     else abrirInicial();
     ler(true); drenar(true);
   }
-  function aoSair() { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (ME) ME.aoSair(); if (PE) PE.aoSair(); c.funcsHoje = null; c.recusaHoje = ''; clearTimeout(c.timer); clearTimeout(c.timerAdiado); gravarRascunhoJa(); apagarCache(); c.pilha = []; c.vista = ''; c.entrou = false; c.semHojeMv = false; c.hx = { pag: 0, obra: '', visto: false, y: 0 }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }
+  function aoSair() { toastEspera = null; if (TE) TE.aoSair(); if (BE) BE.aoSair(); if (ME) ME.aoSair(); if (PE) PE.aoSair(); c.funcsHoje = null; c.recusaHoje = ''; clearTimeout(c.timer); clearTimeout(c.timerAdiado); gravarRascunhoJa(); apagarCache(); c.pilha = []; c.vista = ''; c.entrou = false; c.semHojeMv = false; c.hx = { obra: '', y: 0, cart: {} }; c.obraLer = null; c.obrasQ = ''; c.obrasOutras = false; }
   async function ligar(ponte) {
     A = ponte;
     c.store = await abrirStore(); c.memoria = !!c.store.memoria;

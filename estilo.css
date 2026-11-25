@@ -55,8 +55,8 @@
   --mv-nav-h: 64px;         /* barra de destinos (Hoje · Tarefas · + · Obras · Pessoal), sem a zona segura */
   --mv-campo-h-p: 96px;     /* campo de texto curto (o que se fez) */
   --mv-toast-max: 520px;    /* largura máxima do aviso com Desfazer */
-  --mv-mos-h: 208px;        /* bloco do mosaico do Hoje */
-  --mv-mos-z: 84px;         /* zona do gráfico do bloco, ancorada ao fundo */
+  --mv-hd-h: 216px;         /* Hoje 2026-11: altura mínima de um cartão da pilha (todos ficam com a do mais alto) */
+  --mv-fs-hd: 56px;         /* Hoje 2026-11: o número grande de um cartão da pilha */
   --mv-g7-h: 60px; --mv-g7-hg: 168px; --mv-g7-rot: 14px;   /* colunas dos 7 dias: no bloco, no ecrã «Diário · 7 dias», linha do valor */
   --mv-facao-h: 64px;       /* faixa de acção do Hoje */
   --mv-fs-num-m: 32px; --mv-fs-hola: 24px; --mv-fs-ini: 11px;   /* número do bloco, saudação, iniciais dos dias */
@@ -81,9 +81,8 @@
   --mv-int-w: 52px; --mv-int-h: 32px; --mv-int-bola: 28px;   /* interruptor «Está bloqueado» */
   --mv-b20-hg: 28px;        /* a barra alta dos trabalhos no resumo do ecrã (no bloco é --mv-b20-h) */
   --mv-ano-fio: 1px;        /* Pessoal, F1 (guia 13b): o intervalo entre os dias da grelha do ano (31 colunas a 360 px) */
-  --mv-ob-mini-w: 64px; --mv-ob-mini-h: 28px; --mv-ob-num-w: 44px;   /* linha de uma obra (página Obras): colunas dos 7 dias em miniatura; «homens hoje» */
-  --mv-pag-ponto: 6px; --mv-pag-espreita: 10px;
-  --mv-borda-fina: inset 0 0 0 1px var(--fileteF);   /* a opção escolhida do selector de dois lugares (.mv-segm) */   /* pontos de paginação; a página Obras espreita na 1.ª abertura */
+  --mv-pag-ponto: 6px; --mv-pag-ponto-on: 18px;   /* pontos da pilha do Hoje: o ponto; o do cartão à vista, mais largo */
+  --mv-borda-fina: inset 0 0 0 1px var(--fileteF);   /* a opção escolhida do selector de dois lugares (.mv-segm) */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -513,21 +512,8 @@ html.mv-casca #faixa, html.mv-casca #faixa-rede, html.mv-casca #alheios { displa
 .mv-facao-t small { font-size: var(--mv-fs-leg); color: var(--t2); line-height: var(--mv-lh-op); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mv-facao-b { flex: none; min-height: var(--mv-alvo); min-width: var(--mv-alvo); padding: 0 var(--e4); border: var(--mv-fino) solid transparent; background: var(--mv-tonal) padding-box; color: var(--mv-tonal-t); border-radius: var(--r-l); font-size: var(--mv-fs-sec); font-weight: 600; transition: filter var(--d-rapido) ease-out; }
 .mv-facao-b:active { filter: var(--mv-premido); }
-.mv-mosg { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e3); margin-top: var(--e3); }
-.mv-hcab + .mv-mosg, .mv-faixa + .mv-mosg { margin-top: var(--e5); }
-.mv-mos { display: flex; flex-direction: column; align-items: stretch; min-width: 0; min-height: var(--mv-mos-h); padding: var(--e4); background: var(--papel); border: 1px solid var(--filete); border-radius: var(--r-xl); text-align: left; color: var(--tinta); transition: transform var(--d-rapido) var(--curva), background-color var(--d-rapido) ease-out; }
-.mv-mos.larga { grid-column: 1 / -1; }   /* nesta fatia só o Diário tem dados: o bloco ocupa as duas colunas */
-.mv-mos.larga .mv-g7-a, .mv-mos.larga .mv-g7-d { gap: var(--e3); }   /* a toda a largura as colunas não engordam: o intervalo cresce */
-.mv-mos:active { transform: var(--mv-encolhe); background: var(--papel2); }
-.mv-mos-t { display: flex; align-items: center; gap: var(--e2); height: var(--mv-ic-p); min-width: 0; }
-.mv-mos-t .mv-ic { width: var(--mv-ic-p); height: var(--mv-ic-p); color: var(--t3); }
-.mv-mos-l { flex: 1; min-width: 0; font-size: var(--mv-fs-leg); font-weight: 600; letter-spacing: var(--mv-ls-rot); color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mv-ponto { width: var(--e2); height: var(--e2); border-radius: 50%; flex: none; background: var(--t3); }
 .mv-ponto.ama { background: var(--ama); }
-.mv-mos-n { margin-top: var(--e2); font-size: var(--mv-fs-num-m); font-weight: 600; letter-spacing: var(--mv-ls-num); line-height: var(--mv-lh-justo); height: var(--mv-fs-num-m); font-variant-numeric: tabular-nums; }
-.mv-mos-n.nada { color: var(--t3); font-weight: 500; }
-.mv-mos-c { margin-top: var(--e1); font-size: var(--mv-fs-leg); font-weight: 500; color: var(--t2); line-height: var(--e4); height: var(--e4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mv-mos-v { margin-top: auto; padding-top: var(--e3); height: calc(var(--mv-mos-z) + var(--e3)); display: flex; flex-direction: column; justify-content: flex-end; }
 .mv-embreve { margin: var(--e4) 0 0; font-size: var(--mv-fs-leg); color: var(--t3); line-height: var(--mv-lh-sec); }
 .mv-embreve-f { margin-top: var(--e4); }
 
@@ -577,25 +563,18 @@ html.mv-casca #faixa, html.mv-casca #faixa-rede, html.mv-casca #alheios { displa
 .mv-sk.num { width: var(--e7); height: var(--mv-fs-num-m); margin-top: var(--e2); border-radius: var(--r-m); }
 .mv-sk.leg { margin-top: var(--e2); }
 .mv-sk.graf { height: var(--e8); border-radius: var(--r-m); }
-.mv-mos.sk { pointer-events: none; }
 
 /* entrada do Hoje (só na primeira abertura; nada com movimento reduzido) */
 @keyframes mv-sobe { from { opacity: 0; transform: translateY(var(--e2)); } }
 @keyframes mv-cresce-y { from { transform: scaleY(0); } }
-.mv-hoje.entra .mv-facao, .mv-hoje.entra .mv-mos { animation: mv-sobe var(--mv-d-entra) var(--curva) both; animation-delay: calc(var(--i, 0) * var(--mv-d-cascata)); }
+.mv-hoje.entra .mv-facao, .mv-hoje.entra .hd-pilha, .mv-hoje.entra .hd-sec { animation: mv-sobe var(--mv-d-entra) var(--curva) both; animation-delay: calc(var(--i, 0) * var(--mv-d-cascata)); }
 .mv-hoje.entra .mv-g7-c { animation: mv-cresce-y var(--mv-d-cresce) var(--curva) both; animation-delay: calc(var(--mv-d-entra) + var(--i, 0) * var(--mv-d-cascata) / 2); }
-@media (max-width: 23.125em) { .mv-hoje { margin: 0 calc(-1 * var(--e1)); } .mv-hoje .mv-mosg { gap: var(--e2); } .mv-hoje .mv-mos { padding: var(--e4) var(--e3); } }
+@media (max-width: 23.125em) { .mv-hoje { margin: 0 calc(-1 * var(--e1)); } .mv-hoje .hd-cart-b { padding: var(--e4); } }
 
-/* ══════════ O Hoje da fatia 2a (12 nov 2026): cópia dos protótipos validados (App: o Mosaico; Hoje com todas as obras,
-   variante D). Os blocos Trabalhos e Cliente, o bloco por vir, a barra alta, a linha de tempo ══════════ */
+/* ══════════ O Hoje da fatia 2a (12 nov 2026; desde 25 nov 2026 nos cartões do «Hoje 2026-11», abaixo): as cores do
+   estado, a barra alta dos trabalhos, a linha de tempo do cliente ══════════ */
 .neg-t { color: var(--neg); font-weight: 600; } .pos-t { color: var(--pos); font-weight: 600; } .neu-t { color: var(--t2); font-weight: 600; } .nav-t { color: var(--navy); font-weight: 600; }
 .mv-ponto.neg { background: var(--neg); }
-.mv-mos-cap { display: block; margin-top: var(--e2); height: var(--e4); font-size: var(--mv-fs-leg); font-weight: 500; line-height: var(--e4); color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.mv-mos-cap + .mv-mos-cap { margin-top: 0; }
-/* um bloco que ainda não tem dados (funcionalidade por vir): o contorno tracejado, sem número nem gráfico */
-.mv-mos.embreve { background: none; border-style: dashed; border-color: var(--fileteF); }
-.mv-mos.embreve .mv-mos-l, .mv-mos.embreve .mv-mos-c { color: var(--t3); }
-.mv-mos.embreve:active { transform: none; background: none; }
 /* barra alta de 20 px com os números dentro (trabalhos em falta) */
 .mv-b20 { display: flex; gap: var(--mv-fino); height: var(--mv-b20-h); width: 100%; border-radius: var(--r-s); overflow: hidden; }
 .mv-b20 > i { font-style: normal; display: flex; align-items: center; justify-content: center; min-width: var(--e5); height: 100%; transform-origin: left center; }
@@ -618,59 +597,72 @@ html.mv-casca #faixa, html.mv-casca #faixa-rede, html.mv-casca #alheios { displa
 .mv-hoje.entra .mv-tl7-a > i { animation: mv-cresce var(--mv-d-cresce) var(--curva) both; animation-delay: calc(var(--mv-d-entra) + var(--i, 0) * var(--mv-d-cascata)); }
 @keyframes mv-cresce-x { from { transform: scaleX(0); } }
 @keyframes mv-cresce { from { transform: scale(0); } }
-/* esqueleto dos quatro blocos */
-.mv-sk.w60 { width: 60%; } .mv-sk.w70 { width: 70%; }
-.mv-mos.sk .mv-mos-v .mv-sk + .mv-sk { margin-top: var(--e2); }
 /* folhas dos blocos: o total, os números por estado (com a parte, por baixo), por obra */
 .mv-rl > span small { display: block; font-size: var(--mv-fs-leg); color: var(--t3); }
 .mv-rl b.mv-rl-tot { font-size: var(--mv-fs-tit); font-weight: 650; }
 .mv-rl b.neg-t, .mv-rl b.ama-t { font-weight: 650; }
 .mv-lo-ir .mv-ic { visibility: visible; color: var(--t3); width: var(--mv-ic-pp); height: var(--mv-ic-pp); }
 
-/* Hoje com várias obras (variante D do protótipo validado): Geral · Obras lado a lado, com encaixe; o selector de cima
-   troca com um toque; a página escondida é inert e não alonga o rolar vertical da que se vê */
+/* grupos de linhas e o selector de dois lugares (das listas e do Pessoal) */
 .mv-grupo { background: var(--papel); border: 1px solid var(--filete); border-radius: var(--r-xl); padding: 0 var(--e3) 0 var(--e1); }
 .mv-segm { display: flex; gap: var(--e1); padding: var(--e1); background: var(--papel2); border-radius: var(--r-l); }
 .mv-segm button { flex: 1; min-width: 0; min-height: var(--mv-alvo); border: 0; background: none; border-radius: var(--r-m); font-size: var(--mv-fs-sec); font-weight: 600; color: var(--t2); padding: 0 var(--e2); line-height: var(--mv-lh-op); }
 .mv-segm button[aria-pressed="true"] { background: var(--papel); color: var(--tinta); box-shadow: var(--mv-borda-fina); }
-.hx-volta { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--mv-fino); min-height: var(--mv-alvo); margin: calc(-1 * var(--e2)) 0 calc(-1 * var(--e1)) calc(-1 * var(--e1)); padding: 0 var(--e2) 0 0; border: 0; background: none; color: var(--navy); font-size: var(--mv-fs-sec); font-weight: 600; }
-.hx-volta .mv-ic { width: var(--mv-ic-p); height: var(--mv-ic-p); }
-.hx-sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e3); margin-bottom: var(--e1); }
-.hx-sec-h h2 { font-size: var(--mv-fs-leg); font-weight: 600; letter-spacing: var(--mv-ls-rot); color: var(--t2); }
-.hx-sec-h span { font-size: var(--mv-fs-leg); color: var(--t3); }
-.hx-ob { display: grid; grid-template-columns: minmax(0, 1fr) var(--mv-ob-mini-w) var(--mv-ob-num-w) var(--mv-ic-pp); align-items: center; column-gap: var(--e3); width: 100%; min-height: var(--mv-linha-g); padding: var(--e3) 0; border: 0; border-top: 1px solid var(--filete); background: none; text-align: left; color: var(--tinta); transition: background-color var(--d-rapido) ease-out; }
-.hx-ob:active { background: var(--papel2); }
-.hx-ob-t { min-width: 0; display: flex; flex-direction: column; gap: var(--mv-fino); }
-.hx-ob-t b { font-size: var(--mv-fs-txt); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hx-ob-t b code { margin-right: var(--e2); font-family: var(--f-sans); font-size: var(--mv-fs-sec); font-weight: 650; letter-spacing: var(--mv-ls-rot); color: var(--tinta); }
-.hx-ob-t small { font-size: var(--mv-fs-leg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hx-ob > .mv-ic { width: var(--mv-ic-pp); height: var(--mv-ic-pp); color: var(--t3); }
-.hx-mini { display: flex; align-items: flex-end; gap: var(--mv-fino); height: var(--mv-ob-mini-h); border-bottom: 1px solid var(--fileteF); }
-.hx-mini > i { flex: 1; display: flex; flex-direction: column-reverse; gap: 1px; height: 100%; }
-.hx-mini > i > i { display: block; border-radius: 1px; }
-.hx-mini .doe { background: var(--navy); } .hx-mini .sub { background: var(--mv-sub); }
-.hx-mini .por { border: 1px dashed var(--t3); background: none; }
-.hx-mini .fds { opacity: var(--mv-op-inativo); }
-.hx-num { text-align: right; font-variant-numeric: tabular-nums; }
-.hx-num b { display: block; font-size: var(--mv-fs-tit); font-weight: 600; line-height: var(--mv-lh-justo); }
-.hx-num small { font-size: var(--mv-fs-ini); color: var(--t3); }
-.hx-num.nada b { color: var(--t3); font-weight: 500; }
-.hx-segm-l { display: flex; flex-direction: column; align-items: center; gap: var(--e2); margin-top: var(--e4); }
-.hx-segm { width: 100%; }
-.hx-pontos { display: flex; gap: var(--mv-pag-ponto); }
-.hx-pontos i { width: var(--mv-pag-ponto); height: var(--mv-pag-ponto); border-radius: 50%; background: var(--fileteF); }
-.hx-pontos i.on { background: var(--t2); }
-.hx-pags { --hx-mar: var(--e4); display: flex; align-items: flex-start; gap: var(--e3); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 calc(-1 * var(--hx-mar)); padding: 0 var(--hx-mar) var(--e1); scroll-padding: 0 var(--hx-mar); }
-.hx-pags::-webkit-scrollbar { display: none; }
-.hx-pag { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
-.hx-pags.espreita .hx-pag:first-child { flex-basis: calc(100% - var(--mv-pag-espreita)); }
-.hx-pags > .hx-pag[inert] { max-height: 100vh; overflow: hidden; }
-.hx-pag > .mv-hcab { padding-top: 0; }
-.hx-grupo-d { margin-top: var(--e5); padding: var(--e3) var(--e4) 0; }
-.hx-grupo-d .hx-sec-h { margin-bottom: 0; }
-.hx-grupo-d .hx-sec-h + .hx-ob { border-top-color: transparent; }
-.hx-pontos-b { display: flex; align-items: center; justify-content: center; gap: var(--e2); margin-top: var(--e3); font-size: var(--mv-fs-leg); color: var(--t3); }
-@media (max-width: 23.125em) { .hx-pags { --hx-mar: var(--e3); } }
+
+/* ══════════ «Hoje 2026-11» (25 nov 2026; protótipo validado DOEX-Telemovel-Hoje-D-Prototipo.html, guia 13b): um só ecrã,
+   a pilha de cartões que desliza para o lado (um de cada vez, à largura toda, o seguinte não espreita), os pontos por
+   baixo e «As minhas obras» no fim ══════════ */
+.hd-volta { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--mv-fino); min-height: var(--mv-alvo); margin: calc(-1 * var(--e2)) 0 0 calc(-1 * var(--e2)); padding: 0 var(--e2); border: 0; background: none; color: var(--navy); font-size: var(--mv-fs-sec); font-weight: 600; border-radius: var(--r-m); }
+.hd-volta .mv-ic { width: var(--mv-ic-p); height: var(--mv-ic-p); }
+.hd-pilha { display: flex; flex-direction: column; gap: var(--e2); margin-top: var(--e5); }
+.hd-trilho { display: flex; align-items: stretch; gap: var(--e5); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.hd-trilho::-webkit-scrollbar { display: none; }
+.hd-cart { flex: 0 0 100%; min-width: 0; display: flex; scroll-snap-align: start; scroll-snap-stop: always; }
+.hd-cart-b { flex: 1; min-width: 0; min-height: var(--mv-hd-h); display: flex; flex-direction: column; gap: var(--e3); padding: var(--e5); background: var(--papel); border: 1px solid var(--filete); border-radius: var(--r-xl); color: var(--tinta); font: inherit; text-align: left; }
+button.hd-cart-b:active { background: var(--papel2); }
+.hd-cart-b:focus-visible { outline-offset: calc(-1 * var(--mv-anel)); }   /* o anel por dentro: o trilho (overflow) cortava o de fora */
+.hd-topo { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--e3); }
+.hd-esq { display: flex; flex-direction: column; min-width: 0; }
+.hd-rot { display: flex; align-items: center; gap: var(--e2); font-size: var(--mv-fs-leg); font-weight: 600; letter-spacing: var(--mv-ls-rot); color: var(--t2); }
+.hd-n { display: flex; align-items: baseline; gap: var(--e2); margin-top: var(--e1); font-size: var(--mv-fs-hd); font-weight: 700; letter-spacing: var(--mv-ls-num); line-height: var(--mv-lh-justo); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hd-n.nada { color: var(--t3); font-weight: 500; }
+.hd-n small { min-width: 0; font-size: var(--mv-fs-sec); font-weight: 500; letter-spacing: normal; line-height: var(--mv-lh-op); color: var(--t2); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }   /* a 360 px «10 nov · hoje por fazer» ao lado da média passa a duas linhas, nunca corta o âmbar */
+.hd-med { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: var(--mv-fino); text-align: right; }
+.hd-med b { font-size: var(--mv-fs-tit); font-weight: 700; line-height: var(--mv-lh-tit); font-variant-numeric: tabular-nums; }
+.hd-med span { font-size: var(--mv-fs-leg); color: var(--t2); white-space: nowrap; }
+.hd-z { margin-top: auto; display: flex; flex-direction: column; gap: var(--e2); }
+.hd-cap { display: block; font-size: var(--mv-fs-leg); font-weight: 500; line-height: var(--mv-lh-sec); color: var(--t2); }
+.hd-cap + .hd-cap { margin-top: calc(-1 * var(--e2)); }
+.hd-perc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--e1); }
+.hd-perc > span { display: flex; flex-direction: column; gap: var(--mv-fino); min-width: 0; padding: var(--e2); background: var(--papel2); border-radius: var(--r-m); }
+.hd-perc > span b { font-size: var(--mv-fs-tit); font-weight: 700; line-height: var(--mv-lh-tit); font-variant-numeric: tabular-nums; }
+.hd-perc > span span { font-size: var(--mv-fs-ini); line-height: var(--mv-lh-cab); color: var(--t2); overflow-wrap: break-word; }
+.hd-perc > span.zero b { color: var(--t3); font-weight: 500; }
+.hd-perc > span.on { background: var(--posF); }
+.hd-perc > span.on b { color: var(--pos); }
+.hd-perc > span.fim { background: none; border: 1px dashed var(--fileteF); }
+.hd-nota { font-size: var(--mv-fs-leg); font-weight: 600; color: var(--pos); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hd-pontos { display: flex; justify-content: center; align-items: center; min-height: var(--e5); margin: calc(-1 * var(--e2)) 0; }   /* a margem negativa tira a folga dos alvos de 48 px: o espaço à vista fica o do protótipo */
+.hd-pontos button { display: grid; place-items: center; min-width: var(--mv-alvo); height: var(--mv-alvo); padding: 0; border: 0; background: none; border-radius: var(--r-m); }   /* o alvo de toque é o botão inteiro (48 × 48); o ponto, o <i> de dentro */
+.hd-pontos i { display: block; width: var(--mv-pag-ponto); height: var(--mv-pag-ponto); border-radius: var(--mv-pag-ponto); background: var(--fileteF); transition: width var(--d-normal) var(--curva), background-color var(--d-normal) var(--curva); }
+.hd-pontos > i { margin: 0 calc((var(--mv-alvo) - var(--mv-pag-ponto)) / 2); }
+.hd-pontos button[aria-current="true"] i, .hd-pontos > i.on { width: var(--mv-pag-ponto-on); background: var(--tinta); }
+.hd-pilha.sk .hd-cart-b { pointer-events: none; }
+.hd-pilha.sk .mv-sk.num { width: var(--e8); height: var(--mv-fs-hd); }
+.hd-embreve { margin-top: var(--e3); }
+.hd-sec { margin-top: var(--e6); }
+.hd-sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e3); padding: 0 var(--e1); margin-bottom: var(--e2); }
+.hd-sec-h h2 { margin: 0; font-size: var(--mv-fs-tit); font-weight: 650; letter-spacing: var(--mv-ls-tit); }
+.hd-sec-h span { font-size: var(--mv-fs-sec); color: var(--t2); font-variant-numeric: tabular-nums; }
+.hd-grupo { display: flex; flex-direction: column; padding: var(--e1) 0; background: var(--papel); border: 1px solid var(--filete); border-radius: var(--r-xl); }
+.hd-ob { display: flex; align-items: center; gap: var(--e3); width: 100%; min-height: var(--mv-linha-g); padding: var(--e2) var(--e4); border: 0; background: none; color: var(--tinta); font: inherit; text-align: left; }
+.hd-ob:active { background: var(--papel2); }
+.hd-ob + .hd-ob { border-top: 1px solid var(--filete); }
+.hd-ci { flex: none; width: var(--mv-ic-xg); height: var(--mv-ic-xg); border-radius: 50%; display: grid; place-items: center; background: var(--navyF); color: var(--navy); font-size: var(--mv-fs-ini); font-weight: 700; letter-spacing: var(--mv-ls-rot); overflow: hidden; }
+.hd-ob-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--mv-fino); }
+.hd-ob-t b { font-size: var(--mv-fs-txt); font-weight: 600; line-height: var(--mv-lh-op); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hd-ob-t small { font-size: var(--mv-fs-leg); color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hd-ob-w { flex: none; max-width: 40%; font-size: var(--mv-fs-leg); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Diário de obra: equipas com − n +, frases de um toque, Localizações, fotos já enviadas */
 .mv-como { margin: 0 0 var(--e2); }

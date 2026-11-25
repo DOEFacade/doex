@@ -2,7 +2,9 @@
    browser, require em Node), para ser testada sem browser e contra o servidor real.
    Uma só leitura, GET /movel/hoje?obra=<id>|todas (contrato: docs/analises/Movel-Fatia2-Contrato.md, rota 1), e as contas
    do mosaico dos protótipos validados pelo Pedro: DOEX-Telemovel-App-Prototipo.html (o Hoje em Mosaico) e
-   DOEX-Telemovel-Hoje-Todas-as-Obras-Prototipo.html (variante D: Geral · Obras). Regras que esta lógica cumpre:
+   DOEX-Telemovel-Hoje-Todas-as-Obras-Prototipo.html (variante D de 11 nov: Geral · Obras, que SAIU a 25 nov 2026); desde
+   25 nov 2026, o «Hoje 2026-11» (DOEX-Telemovel-Hoje-D-Prototipo.html: um só ecrã, a pilha de cartões, «As minhas obras»).
+   Regras que esta lógica cumpre:
    - um bloco que o servidor manda a null (funcionalidade fora de «Edge ∩ SQL») nunca mostra números: fica «Em breve»;
    - «diário por fazer» numa obra = dia útil, a obra sem registos hoje (serie7[6].registos, a regra do contrato) e sem o
      meu (aceite ou por enviar neste telemóvel). É a MESMA função para a faixa, o ponto, a palavra da obra, o número do
@@ -213,6 +215,30 @@
       { k: 'porFormalizar', rot: 'Por formalizar', n: form, cls: form ? 'ama-t' : '' },
       { k: 'formalizados', rot: 'Formalizados, à espera do cliente', n: fz, cls: sr ? 'neg-t' : '', sub: sr ? sr + ' sem resposta' : '' }] };
   }
+  // ── «Hoje 2026-11» (25 nov 2026; protótipo DOEX-Telemovel-Hoje-D-Prototipo.html, plano docs/analises/Movel-Hoje-D-Plano.md) ──
+  /** A média dos homens ATÉ ONTEM (decisão do Pedro, 25 nov 2026): os dias úteis (sem fim de semana nem feriado) COM registo
+      dos 6 dias antes de hoje; hoje nunca entra (ainda vai a meio). Arredondada. null sem nenhum desses dias: nunca «0».
+      s: a série dos 7 dias (o último é hoje), como a de `serie`, `serieSomada` ou a do diário (diario.js serieObra/serie7). */
+  function mediaAteOntem(s) {
+    var l = (Array.isArray(s) ? s.slice(0, -1) : []).filter(function (x) { return x && !x.hoje && x.tem && !x.fds && !x.feriado; });
+    if (!l.length) return null;
+    return Math.round(l.reduce(function (a, x) { return a + num(x.total); }, 0) / l.length);
+  }
+  /** As pendências de uma obra em «As minhas obras»: «6 trabalhos · 1 bloqueio · 2 materiais por receber», só as que não
+      são zero, por esta ordem (os homens não entram: decisão do Pedro, 25 nov 2026). Trabalhos = os em falta
+      (`trabalhos.abertos`); bloqueios = os do cliente activos e os resolvidos com trabalhos ainda parados (a mesma população
+      do cartão e da lista); materiais = as LINHAS de material por receber (`material.porReceber` conta linhas, não pedidos:
+      a mesma palavra do cartão, ME.bloco). opc.material === false: o material ainda não chegou a esta página (não se conta).
+      '' = nada. */
+  function pendencias(m, opc) {
+    var o = opc || {}, t = m && m.trabalhos, c = m && m.cliente, mat = o.material === false ? null : (m && m.material), l = [];
+    var b = c ? num(c.ativos) + num(c.resolvidosComTrabalhos) : 0;
+    if (t && num(t.abertos)) l.push(pl(num(t.abertos), 'trabalho', 'trabalhos'));
+    if (b) l.push(pl(b, 'bloqueio', 'bloqueios'));
+    if (mat && num(mat.porReceber)) l.push(pl(num(mat.porReceber), 'material', 'materiais') + ' por receber');
+    return l.join(' · ');
+  }
+
   /** A frase de uma obra na folha «Diário por fazer»: o último dia com diário (da obra) nos 7 dias. */
   function ultimoTexto(m) {
     var u = ultimoDia(m.serie);
@@ -225,5 +251,6 @@
     serie: serie, ultimoDia: ultimoDia, modeloObra: modeloObra, palavra: palavra, ordenar: ordenar, porFazer: porFazer,
     blocoDiario: blocoDiario, serieSomada: serieSomada, blocoDiarioGeral: blocoDiarioGeral, segsTrabalhos: segsTrabalhos,
     blocoTrabalhos: blocoTrabalhos, blocoCliente: blocoCliente, linhaTempo: linhaTempo, linhasTrabalhos: linhasTrabalhos, linhasCliente: linhasCliente, ultimoTexto: ultimoTexto,
+    mediaAteOntem: mediaAteOntem, pendencias: pendencias,
   };
 }));
